@@ -1,0 +1,4 @@
+localhost:80
+
+mime .mjs Application/ECMAScript
+mime .js Application/JavaScript

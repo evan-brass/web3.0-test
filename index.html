@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet">
+	</head>
+	<body>
+		<main>
+			<h1 id="title"></h1>
+			<p id="description"></p>
+			<button id="action"></button>
+		</main>
+		<section>
+			<h2>Make a friend:</h2>
+			
+			<Label>Push URL:<input type="url"></Label><br>
+
+		</section>
+		<!-- <script type="module" src="main.mjs"></script> -->
+		<script type="module">
+			class EventStream {
+				constructor(target, events) {
+					this.triggers = [];
+					for (const event of events) {
+						target.addEventListener(event, e => {
+							this.triggers.forEach(
+								trig => trig({done: false, value: e})
+							);
+							this.triggers.length = 0;
+						});
+					}
+				}
+				static async *join(a, b) {
+					const NEVER = new Promise(_ => {});
+					const ha = v => Promise.resolve({a: v});
+					const hb = v => Promise.resolve({b: v});
+					const stream_a = a[Symbol.asyncIterator]();
+					const stream_b = b[Symbol.asyncIterator]();
+					let aProm = stream_a.next().then(ha);
+					let bProm = stream_b.next().then(hb);
+					do {
+						const val = await Promise.race([aProm, bProm]);
+						if (val.a) {
+							yield val.a.value;
+							if (!val.a.done) {
+								aProm = stream_a.next().then(ha);
+							} else {
+								aProm = NEVER;
+							}
+						} else {
+							yield val.b.value;
+							if (!val.b.done) {
+								bProm = stream_b.next().then(hb);
+							} else {
+								bProm = NEVER;
+							}
+						}
+					} while (aProm !== NEVER || bProm !== NEVER);
+				}
+				[Symbol.asyncIterator]() {
+					return {
+						next: () => {
+							return new Promise(res => this.triggers.push(res));
+						}
+					};
+				}
+			}
+
+			(async function() {
+				const con1 = new RTCPeerConnection();
+				pc.onnegotiationneeded = async () => {
+					await pc.setLocalDescription(await pc.createOffer());
+					io.send({description: pc.localDescription});
+				}
+				const con2 = new RTCPeerConnection();
+
+				const events = [
+					'icecandidate', 
+					'connectionstatechange', 
+					'datachannel', 
+					'iceconnectionstatechange', 
+					'identityresult', 
+					'negotiationneeded', 
+					'removestream', 
+					'signalingstatechange', 
+					'track'
+				];
+				const c1e = new EventStream(con1, events);
+				const c2e = new EventStream(con2, events);
+
+				const offer = await con1.createOffer();
+				console.log(offer);
+				con1.setLocalDescription(offer);
+				con2.setRemoteDescription(offer);
+
+				const answer = await con2.createAnswer();
+				console.log(answer);
+				con2.setLocalDescription(answer);
+				con1.setRemoteDescription(answer);
+
+				const other = con => (con === con1) ? con2 : con1;
+
+				const d1 = con1.createDataChannel('control');
+
+				for await (const event of EventStream.join(c1e, c2e)) {
+					switch(event.type) {
+						case "icecandidate":
+							console.log("Ice Candidate: ", event.target, event.candidate);
+							if (event.candidate) {
+								other(event.target).addIceCandidate(event.candidate);
+							}
+						break;
+						default:
+							console.log(event);
+					}
+				}
+			})();
+		</script>
+	</body>
+</html>
