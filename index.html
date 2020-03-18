@@ -1,119 +1,68 @@
 <!DOCTYPE html>
-<html>
-	<head>
-		<link rel="stylesheet">
-	</head>
-	<body>
-		<main>
-			<h1 id="title"></h1>
-			<p id="description"></p>
-			<button id="action"></button>
-		</main>
-		<section>
-			<h2>Make a friend:</h2>
-			
-			<Label>Push URL:<input type="url"></Label><br>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Test static hosted P2P web-app</title>
+	<link rel="stylesheet" href="./main.css">
+</head>
+<body>
+	<section>
+		<header>
+			<h1>Permissions:</h1>
+			<p>
+				Expand to get detailed information about why each permission is needed and how to enable it.
+			</p>
+		</header>
+		<h2>Required To Function:</h2>
+		<details>
+			<summary>
+				Push Notification Access:
+			</summary>
+			<h3>How:</h3>
+			<p>
+				To enable push notification access, click the following button and then click accept in the browser permission dialog:<br>
+				<button id="push-permissions" disabled>Push Notifications</button>
+			</p>
+			<h3>Why:</h3>
+			<p>
+				This app uses new browser features to establish direct connections between your browser and other visitors' browsers.  One of those technologies is called Web Real-Time Communication (WebRTC).  WebRTC is a cluster of technologies which enable two browsers to establish audio, video, or other streams directly by passing messages between a third party signaling server.  Usually, the creator of the website would host that signaling server but if that server went down or was censored, then the app would cease to function.
+			</p>
+			<p>
+				This website uses a different browser api called web-push in the place of that signaling server.  The Web Push api allows a website to use the signaling networks that browsers already have.  Browser vendors use these servers to notify your browser when updates are available to download/install.  They are also used to notify your browser of security certificate revocations in real-time.  The browser manufacturers are adapting their signaling networks to support the web push protocol.
+			</p>
+			<p>
+				The Web Push specification specifies the browser api to get a subscription from those signaling networks as well as the message format which is always encrypted.  In this app, instead of those signals (notifications) being send by a server, they are sent by other visitors' browsers and carry WebRTC signaling information.  Both WebRTC and WebPush are encrypted end-to-end meaning that the signaling networks and servers used by WebRTC aren't able to intercept / hijack the connection between your browser and the person you're trying to talk with.  However, it's important to understand that any privacy guarantees you have now are only one privacy policy change or one browser update away from being gone.
+			</p>
+		</details>
+	</section>
+	<hr>
+	<section>
+		<header>
+			<h1>Friends:</h1>
+			<p>
+				To start interacting with other people, use these tools to share your signaling information with others and add their signaling information to your collection.
+			</p>
+		</header>
+		<h2>Share Self:</h2>
+		<details id="self-info">
+			<summary>
+				<button disabled>Generate</button>
+			</summary>
+			<h3>Generated Output:</h3>
+			<div>
 
-		</section>
-		<!-- <script type="module" src="main.mjs"></script> -->
-		<script type="module">
-			class EventStream {
-				constructor(target, events) {
-					this.triggers = [];
-					for (const event of events) {
-						target.addEventListener(event, e => {
-							this.triggers.forEach(
-								trig => trig({done: false, value: e})
-							);
-							this.triggers.length = 0;
-						});
-					}
-				}
-				static async *join(a, b) {
-					const NEVER = new Promise(_ => {});
-					const ha = v => Promise.resolve({a: v});
-					const hb = v => Promise.resolve({b: v});
-					const stream_a = a[Symbol.asyncIterator]();
-					const stream_b = b[Symbol.asyncIterator]();
-					let aProm = stream_a.next().then(ha);
-					let bProm = stream_b.next().then(hb);
-					do {
-						const val = await Promise.race([aProm, bProm]);
-						if (val.a) {
-							yield val.a.value;
-							if (!val.a.done) {
-								aProm = stream_a.next().then(ha);
-							} else {
-								aProm = NEVER;
-							}
-						} else {
-							yield val.b.value;
-							if (!val.b.done) {
-								bProm = stream_b.next().then(hb);
-							} else {
-								bProm = NEVER;
-							}
-						}
-					} while (aProm !== NEVER || bProm !== NEVER);
-				}
-				[Symbol.asyncIterator]() {
-					return {
-						next: () => {
-							return new Promise(res => this.triggers.push(res));
-						}
-					};
-				}
-			}
+			</div>
+		</details>
+		<h2>Add Friend:</h2>
+		<details>
+			<summary id="make-friend">
+				<button disabled>Add friend</button>
+				<input type="text">
+			</summary>
+		</details>
+	</section>
 
-			(async function() {
-				const con1 = new RTCPeerConnection();
-				pc.onnegotiationneeded = async () => {
-					await pc.setLocalDescription(await pc.createOffer());
-					io.send({description: pc.localDescription});
-				}
-				const con2 = new RTCPeerConnection();
-
-				const events = [
-					'icecandidate', 
-					'connectionstatechange', 
-					'datachannel', 
-					'iceconnectionstatechange', 
-					'identityresult', 
-					'negotiationneeded', 
-					'removestream', 
-					'signalingstatechange', 
-					'track'
-				];
-				const c1e = new EventStream(con1, events);
-				const c2e = new EventStream(con2, events);
-
-				const offer = await con1.createOffer();
-				console.log(offer);
-				con1.setLocalDescription(offer);
-				con2.setRemoteDescription(offer);
-
-				const answer = await con2.createAnswer();
-				console.log(answer);
-				con2.setLocalDescription(answer);
-				con1.setRemoteDescription(answer);
-
-				const other = con => (con === con1) ? con2 : con1;
-
-				const d1 = con1.createDataChannel('control');
-
-				for await (const event of EventStream.join(c1e, c2e)) {
-					switch(event.type) {
-						case "icecandidate":
-							console.log("Ice Candidate: ", event.target, event.candidate);
-							if (event.candidate) {
-								other(event.target).addIceCandidate(event.candidate);
-							}
-						break;
-						default:
-							console.log(event);
-					}
-				}
-			})();
-		</script>
-	</body>
+	<script type="module" src="./main.mjs"></script>
+</body>
 </html>

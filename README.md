@@ -1,2 +1,7 @@
-# web3.0-test
-WebPush, WebRTC, and maybe more to make P2P bootstrapping without any well-known servers.  Dynamic apps from static servers!
+# Goals:
+The purpose of this project is to have dynamic, user generated, content from a staticly hosted website.  The reasons for this are numerous.  One is the expense of hosting dynamic servers.  Another is the ability to verify static content to provide greater assurance than DNS or the original certificate authority system can provide.  The site could be hosted on ipfs.  The site could be shared between people if web-packaging becomes a thing potentially cutting out hosting altogether.
+
+# Design:
+The dynamic content can be shared over WebRTC connections (probably peer channels).  The signaling required to negotiate and establish peer-to-peer webrtc connection would be done over the webpush api.  This means that the signaling burden would be placed on the browser manufacturers: Google, Mozilla, Apple, etc.  Signaling was left unspecified in the webrtc spec so one challenge for the project is to specify how to signal over the push api which has certain constraints.  The max message size garunteed by webpush is 4kb so all messages need to fit within that size.  Also, subscriptions can be invalidated by the push service at anytime.  I believe that these constraints make a binary protocol attractive.
+
+Lastly, I think that this functionality would be really useful so care should be taken to make the design portable to other projects.  Interacting with the webpush api requires modifying the service worker which makes integrating with this project difficult.  I would like to explore how object urls as the source of iframes might be able to help with this issue.
