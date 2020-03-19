@@ -17,6 +17,20 @@ async function get_self() {
 
 	return self;
 }
+async function get_peers() {
+	const db = await get_database();
+	const trans = db.transaction('peers', 'readonly');
+	const peers_store = trans.objectStore('peers');
+
+	const peers = await wrap_request(peers_store.getAll());
+
+	const completed = new Promise(resolve => trans.addEventListener('complete', resolve));
+	trans.commit();
+	await completed;
+	db.close();
+
+	return peers;
+}
 async function put_self(new_self) {
 	const db = await get_database();
 	const trans = db.transaction('self', 'readwrite');
@@ -30,6 +44,7 @@ async function put_self(new_self) {
 	db.close();
 }
 self.SW_RPC_DEFINITION = {
+	// Self:
 	async get_self() {
 		return get_self();
 	},
@@ -108,6 +123,11 @@ self.SW_RPC_DEFINITION = {
 		console.log('Created a self introduction that is valid for 36 hours with a size of: ', data.byteLength);
 		return base64ToUrlBase64(bufferToBase64(data));
 	},
+	// Peers:
+	async peer_list() {
+		const channel = new MessageChannel();
+
+	},
 	async make_friend(input) {
 		const data = base64ToBuffer(urlBase64ToBase64(input));
 		const message = signaling_decoder.decode_message(data.buffer);
@@ -117,16 +137,3 @@ self.SW_RPC_DEFINITION = {
 		}
 	}
 };
-
-// Utility stuff - From common.mjs
-function toUrlBase64(data) {
-	return btoa(data)
-		.replace(/\+/g, "-")
-		.replace(/\//g, "_")
-		.replace(/=/g, "")
-}
-function fromUrlBase64(data) {
-	return atob((data + "====".substr(data.length % 4))
-		.replace(/\-/g, "+")
-		.replace(/\_/g, "/"));
-}

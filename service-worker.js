@@ -11,16 +11,10 @@ importScripts(
 	'./sw/webpush.js',
 
 	'./msg-rpc.js',
-	'./sw/sw-rpc-def.js'
+	'./sw/rpc-definition.js'
 );
 
-// BEGIN Testing
-const test_encoder = new TextEncoder();
-console.log(base64ToUrlBase64(bufferToBase64(test_encoder.encode(JSON.stringify({
-	typ: "JWT",
-	alg: "ES256"
-})))));
-// END Testing
+const peer_change_channels = new Set();
 
 const peer_base = {
 	public_key: false, // Pretty much the only required parameter here - populated on creation.
@@ -55,7 +49,7 @@ rpc_client(self, undefined, SW_RPC_DEFINITION, {});
 self.addEventListener('pushsubscriptionchange', event => {
 	event.waitUntil((async () => {
 		console.warn(event);
-		// TODO: Invalidate the info_sent field on all of the peers
+		// TODO: Invalidate the info_sent field on all of the peers + Apply new subscription info to self
 		await NEVER;
 	})());
 });

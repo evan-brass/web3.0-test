@@ -1,5 +1,5 @@
 
-import './sw/sw-rpc-def.js';
+import './sw/rpc-definition.js';
 import './msg-rpc.js';
 
 import { push_permission_clicked, self_info, make_friend_info } from './ui.mjs';
@@ -94,6 +94,7 @@ navigator.serviceWorker.addEventListener('controllerchange', _ => sw_api = get_s
 				});
 				// req_explain.remove();
 			} catch (e) {
+				console.warn(e);
 				subscription = false;
 				// req_explain.insertAdjacentHTML('beforeend', '<br>Permission failed, please try again.');
 			}
