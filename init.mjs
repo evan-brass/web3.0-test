@@ -4,6 +4,7 @@ import mount from './extern/js-min/src/templating/mount.mjs';
 import html from './extern/js-min/src/templating/html.mjs';
 import ref from './extern/js-min/src/templating/users/ref.mjs';
 import on from './extern/js-min/src/templating/users/on.mjs';
+import css from './extern/js-min/src/templating/css.mjs';
 
 import differed from './extern/js-min/src/lib/differed.mjs';
 import wrapSignal from './extern/js-min/src/cancellation/wrap-signal.mjs';
@@ -53,30 +54,48 @@ export default (async () => {
 			let tries_left = 4;
 			let last_error;
 			const push_manager = sw_registration.pushManager;
-			while (tries_left--) {
+			while (--tries_left) {
 				const permission_state = await wrapSignal(timeout(1000))(push_manager.permissionState({
 					applicationServerKey: self_public_key,
 					userVisibleOnly: true
 				}));
 				if (permission_state !== 'granted') {
-					const dialog_close = differed();
+					const button_clicked = differed();
+					const id = "lksadjfufufufu";
 					const unmount = mount(html`
-					<dialog ${ref(el => el.showModal())} ${on('close', dialog_close.res)}>
-						<form method="dialog">
-							<p>
-								Push notification permission is required for this application to function.  notifications allow other users to establish secure, direct communication between your browser and theirs.
-							</p>
-							<p>
-								To enable push notifications, click continue and then click allow in the browser permission dialog that appears.
-							</p>
-							<p>
-								<strong>Retries left:</strong> ${tries_left}
-							</p>
-							<button value="continue">Continue</button>
-						</form>
-					</dialog>
+					${css`
+						#${id} {
+							z-index: 50;
+							background-color: white;
+							padding: 2em;
+							border: 1px solid #eee;
+						}
+						#${id}::before {
+							content: "";
+							position: fixed;
+							display: block;
+							left: 0;
+							top: 0;
+							background-color: #00000055;
+							z-index: -1;
+							width: 100vw;
+							height: 100vh;
+						}
+					`}
+					<div id="${id}">
+						<p>
+							Push notification permission is required for this application to function.  notifications allow other users to establish secure, direct communication between your browser and theirs.
+						</p>
+						<p>
+							To enable push notifications, click continue and then click allow in the browser permission dialog that appears.
+						</p>
+						<p>
+							<strong>Retries left:</strong> ${tries_left}
+						</p>
+						<button ${on('click', button_clicked.res)}>Continue</button>
+					</div>
 					`);
-					await wrapSignal(timeout(20000))(dialog_close);
+					await wrapSignal(timeout(20000))(button_clicked);
 					unmount();
 				}
 				try {
