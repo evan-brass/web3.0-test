@@ -24,7 +24,7 @@ export default function create_spinner() {
         },
         get [User]() {
             return html`
-                ${css`@import url("/css/spinner.css");`}
+                ${css`@import url("./css/spinner.css");`}
                 <output class="spinner" ${ref(async (spinner, signal) => {
                     const classes = ['running', 'errored', 'completed'];
                     for await (const s of state) {
