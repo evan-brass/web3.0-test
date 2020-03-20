@@ -15,9 +15,7 @@ export default (async () => {
 		[ 'Fetch / Register Service Worker', async () => {
 			let registration = await navigator.serviceWorker.getRegistration();
 			if (!registration) {
-				registration = await navigator.serviceWorker.register('./service-worker.js', {
-					scope: '/'
-				});
+				registration = await navigator.serviceWorker.register('./service-worker.js');
 			}
 			return [registration];
 		}],
