@@ -55,6 +55,23 @@ export default (async () => {
 			let last_error;
 			const push_manager = sw_registration.pushManager;
 			while (--tries_left) {
+				let subscription;
+				try {
+					// Check for an existing subscription:
+					subscription = await wrapSignal(timeout(1000))(push_manager.getSubscription());
+					if (subscription) {
+						// Verify that the subscription matches our self key
+						const test = new Uint8Array(subscription.options.applicationServerKey);
+						const pub_t = new Uint8Array(self_public_key);
+						if (test.length == pub_t.length && test.every((val, i) => val == pub_t[i])) {
+							return;
+						} else {
+							if (!await subscription.unsubscribe()) {
+								throw new Error("Couldn't unsubscribe existing subscription!");
+							}
+						}
+					}
+				} finally {}
 				const permission_state = await wrapSignal(timeout(1000))(push_manager.permissionState({
 					applicationServerKey: self_public_key,
 					userVisibleOnly: true
@@ -95,40 +112,28 @@ export default (async () => {
 						<button ${on('click', button_clicked.res)}>Continue</button>
 					</div>
 					`);
-					await wrapSignal(timeout(20000))(button_clicked);
+					await button_clicked;
 					unmount();
 				}
 				try {
-					let subscription = await wrapSignal(timeout(1000))(push_manager.getSubscription());
-					if (subscription) {
-						// Verify that the subscription matches our self key
-						const test = new Uint8Array(subscription.options.applicationServerKey);
-						const pub_t = new Uint8Array(self_public_key);
-						if (test.length == pub_t.length && test.every((val, i) => val == pub_t[i])) {
-							return;
-						} else {
-							await subscription.unsubscribe()
-						}
-					} else {
-						// TODO: Switch off userVisibleOnly in the future when allowed.
-						subscription = await push_manager.subscribe({
-							userVisibleOnly: true,
-							applicationServerKey: self_public_key
-						});
-						const push_public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey(
-							'raw',
-							subscription.getKey('p256dh'),
-							{ name: 'ECDH', namedCurve: 'P-256' },
-							true,
-							[]
-						));
-						await service_worker_api.push_info_self(
-							push_public_key,
-							subscription.getKey('auth'),
-							subscription.endpoint
-						);
-						return;
-					}
+					// TODO: Switch off userVisibleOnly in the future when allowed.
+					subscription = await push_manager.subscribe({
+						userVisibleOnly: true,
+						applicationServerKey: self_public_key
+					});
+					const push_public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey(
+						'raw',
+						subscription.getKey('p256dh'),
+						{ name: 'ECDH', namedCurve: 'P-256' },
+						true,
+						[]
+					));
+					await service_worker_api.push_info_self(
+						push_public_key,
+						subscription.getKey('auth'),
+						subscription.endpoint
+					);
+					return;
 				} catch (e) {
 					last_error = e;
 				}
