@@ -12,8 +12,8 @@ body {
 	padding: 1em;
 	margin: 0 auto;
 	/* font-family: 'Lora', serif; */
-	text-align: justify;
-	text-justify: auto;
+	/* text-align: justify; */
+	/* text-justify: auto; */
 }
 
 :focus {

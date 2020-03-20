@@ -7,62 +7,7 @@
 	<link rel="stylesheet" href="./main.css">
 </head>
 <body>
-	<section>
-		<header>
-			<h1>Permissions:</h1>
-			<p>
-				Expand to get detailed information about why each permission is needed and how to enable it.
-			</p>
-		</header>
-		<h2>Required To Function:</h2>
-		<details>
-			<summary>
-				Push Notification Access:
-			</summary>
-			<h3>How:</h3>
-			<p>
-				To enable push notification access, click the following button and then click accept in the browser permission dialog:<br>
-				<button id="push-permissions" disabled>Push Notifications</button>
-			</p>
-			<h3>Why:</h3>
-			<p>
-				This app uses new browser features to establish direct connections between your browser and other visitors' browsers.  One of those technologies is called Web Real-Time Communication (WebRTC).  WebRTC is a cluster of technologies which enable two browsers to establish audio, video, or other streams directly by passing messages between a third party signaling server.  Usually, the creator of the website would host that signaling server but if that server went down or was censored, then the app would cease to function.
-			</p>
-			<p>
-				This website uses a different browser api called web-push in the place of that signaling server.  The Web Push api allows a website to use the signaling networks that browsers already have.  Browser vendors use these servers to notify your browser when updates are available to download/install.  They are also used to notify your browser of security certificate revocations in real-time.  The browser manufacturers are adapting their signaling networks to support the web push protocol.
-			</p>
-			<p>
-				The Web Push specification specifies the browser api to get a subscription from those signaling networks as well as the message format which is always encrypted.  In this app, instead of those signals (notifications) being send by a server, they are sent by other visitors' browsers and carry WebRTC signaling information.  Both WebRTC and WebPush are encrypted end-to-end meaning that the signaling networks and servers used by WebRTC aren't able to intercept / hijack the connection between your browser and the person you're trying to talk with.  However, it's important to understand that any privacy guarantees you have now are only one privacy policy change or one browser update away from being gone.
-			</p>
-		</details>
-	</section>
-	<hr>
-	<section>
-		<header>
-			<h1>Friends:</h1>
-			<p>
-				To start interacting with other people, use these tools to share your signaling information with others and add their signaling information to your collection.
-			</p>
-		</header>
-		<h2>Share Self:</h2>
-		<details id="self-info">
-			<summary>
-				<button disabled>Generate</button>
-			</summary>
-			<h3>Generated Output:</h3>
-			<div>
-
-			</div>
-		</details>
-		<h2>Add Friend:</h2>
-		<details>
-			<summary id="make-friend">
-				<button disabled>Add friend</button>
-				<input type="text">
-			</summary>
-		</details>
-	</section>
-
+	<web3-friends></web3-friends>
 	<script type="module" src="./main.mjs"></script>
 </body>
 </html>

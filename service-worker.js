@@ -10,8 +10,7 @@ importScripts(
 
 	'./sw/webpush.js',
 
-	'./msg-rpc.js',
-	'./sw/rpc-definition.js'
+	'./sw/rpc-server.js'
 );
 
 const peer_change_channels = new Set();
@@ -42,9 +41,6 @@ self.addEventListener('activate', event => {
 		await self.clients.claim();
 	})());
 });
-
-// So... The service worker can't call any client methods, because there could be multiple clients and that would mean multiple results - which I can't currently handle.
-rpc_client(self, undefined, SW_RPC_DEFINITION, {});
 
 self.addEventListener('pushsubscriptionchange', event => {
 	event.waitUntil((async () => {

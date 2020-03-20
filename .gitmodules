@@ -1,0 +1,3 @@
+[submodule "extern/js-min"]
+	path = extern/js-min
+	url = https://github.com/evan-brass/js-min.git
