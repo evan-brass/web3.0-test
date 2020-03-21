@@ -7,9 +7,13 @@ import LiveData from '../extern/js-min/src/reactivity/live-data.mjs';
 
 
 export default function create_spinner() {
-    let state = new LiveData('running');
+    let state = new LiveData('dormant');
     let status = new LiveData('');
     return {
+        dormant() {
+            state.value = 'dormant';
+            status.value = '';
+        },
         run(status_in = '') {
             state.value = 'running';
             status.value = status_in;
@@ -26,7 +30,7 @@ export default function create_spinner() {
             return html`
                 ${css`@import url("./css/spinner.css");`}
                 <output class="spinner" ${ref(async (spinner, signal) => {
-                    const classes = ['running', 'errored', 'completed'];
+                    const classes = ['dormant', 'running', 'errored', 'completed'];
                     for await (const s of state) {
                         if (signal.aborted) return;
                         spinner.classList.remove(...classes);

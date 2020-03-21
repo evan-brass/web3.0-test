@@ -23,33 +23,17 @@
 	height: 100%;
 	animation-duration: 1s;
 	animation-fill-mode: forwards;
-}
-/* Shared by completed and running: */
-.spinner > span::before, .spinner > span::after {
+	/* Shared by dormant, completed and running: */
 	width: 100%;
 	left: 0;
 	background: transparent;
 	border: 2px solid #ccc;
 	border-radius: 50%;
 }
-/* Completed: */
-.spinner.completed > span::before {
-	left: 0;
-	animation-name: spinner-completed-before;
-}
-.spinner.completed > span::after {
+/* Dormant: */
+.spinner.dormant > span::after {
 	display: none;
 }
-@keyframes spinner-completed-before {
-	from {
-		
-	}
-	to {
-		border-color: #02c39a;
-		border-radius: 50%;
-	}
-}
-
 /* Running: */
 .spinner.running > span::after {
 	animation-name: spinner-run-after;
@@ -68,6 +52,21 @@
 .spinner.running > span::after {
 	border-color: transparent;
 	border-bottom-color: #333;
+}
+
+/* Completed: */
+.spinner.completed > span::before {
+	left: 0;
+	animation-name: spinner-completed-before;
+}
+.spinner.completed > span::after {
+	display: none;
+}
+@keyframes spinner-completed-before {
+	to {
+		border-color: #02c39a;
+		border-radius: 50%;
+	}
 }
 
 /* Errored: */

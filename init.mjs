@@ -2,7 +2,6 @@ import service_worker_api from './rpc-client.mjs';
 
 import mount from './extern/js-min/src/templating/mount.mjs';
 import html from './extern/js-min/src/templating/html.mjs';
-import ref from './extern/js-min/src/templating/users/ref.mjs';
 import on from './extern/js-min/src/templating/users/on.mjs';
 import css from './extern/js-min/src/templating/css.mjs';
 

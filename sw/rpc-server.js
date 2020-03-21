@@ -52,8 +52,9 @@ const service_worker_api = {
 
         // Create the required JWTs to last at least valid:
         const jwts = [];
-        while (valid > 0) {
-            const duration = (valid > 12) ? 12 : valid;
+        let valid_i = valid;
+        while (valid_i > 0) {
+            const duration = (valid_i > 12) ? 12 : valid_i;
             jwts.push(
                 await signaling_encoder.sub.common_jwt(
                     self_key,
@@ -61,7 +62,7 @@ const service_worker_api = {
                     duration
                 )
             );
-            valid -= duration;
+            valid_i -= duration;
         }
 
         const data = await signaling_encoder.build(self_key, [
@@ -74,15 +75,19 @@ const service_worker_api = {
             ...jwts
         ]);
         console.log('Created a self introduction that is valid for 12 hours with a size of: ', data.byteLength);
-        return base64ToUrlBase64(bufferToBase64(data));
+        const valid_until_stamp = Date.now() + (valid * 60 * 60 * 1000);
+        return {
+            valid_until: new Date(valid_until_stamp),
+            intro: base64ToUrlBase64(bufferToBase64(data))
+        };
     },
     // Peers:
     async peer_list() {
         const channel = new MessageChannel();
 
     },
-    async make_friend(input) {
-        const data = base64ToBuffer(urlBase64ToBase64(input));
+    async apply_introduction(input) {
+        const data = base64ToBuffer(urlBase64ToBase64(input.trim()));
         const message = signaling_decoder.decode_message(data.buffer);
         console.log('Message received: ', message);
         for await (const sub_message of message) {
@@ -116,8 +121,8 @@ self.addEventListener('message', e => {
                 }
                 send_port.postMessage({ id, result });
             } catch (error) {
-                send_port.postMessage({ id, error });
                 console.error(error);
+                send_port.postMessage({ id, error });
             }
         }
     })();

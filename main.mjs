@@ -4,6 +4,7 @@ import mount from './extern/js-min/src/templating/mount.mjs';
 import html from './extern/js-min/src/templating/html.mjs';
 import css from './extern/js-min/src/templating/css.mjs';
 import on from './extern/js-min/src/templating/users/on.mjs';
+import ref from './extern/js-min/src/templating/users/ref.mjs';
 
 import Base from './extern/js-min/src/custom-elements/base.mjs';
 
@@ -24,12 +25,102 @@ class Web3Friends extends Base {
 
 		mount(css`
 			:host {
-				display: inline-block;
+				display: block;
 			}
 		`, this.shadowRoot);
-		
+
 		const spinner = create_spinner();
-		const unmount = mount(spinner, this.shadowRoot);
+		mount(html`
+			${spinner}
+			<hr>
+			<h1>Make Friends</h1>
+			${(() => {
+			return html`
+				<details>
+					<summary>
+						Generate your introduction:
+					</summary>
+					${(async function*(){
+						let generate_clicked = differed();
+						const spinner = create_spinner();
+						yield html`<button ${on('click', generate_clicked.res)}>Generate</button>`;
+						while(1) {
+							await generate_clicked
+							generate_clicked = differed();
+							yield spinner;
+							try {
+								spinner.run();
+								const { valid_until, intro } = await service_worker_api.get_self_intro();
+								let intro_out = intro.match(/.{1,30}/g).join('\n');
+								// let intro_out = intro;
+								yield html`
+									<pre style="margin-inline: auto; inline-size: fit-content;">${intro_out}</pre>
+									This token is valid until <date >${valid_until.toLocaleDateString()} ${valid_until.toLocaleTimeString()}</date><br>
+									<button ${on('click', generate_clicked.res)}>Regenerate</button>
+								`;
+							} catch (e) {
+								spinner.error();
+								console.error(e);
+								yield html`
+									${spinner}
+									<button ${on('click', generate_clicked.res)}>Retry</button>
+								`;
+							}
+						}
+					})()}
+				</details>
+			`;
+			})()}
+
+			${(() => {
+				return html`
+				<details>
+					<summary>
+						Apply a friend's introduction:
+					</summary>
+					${(async function* () {
+						let apply_clicked = differed();
+						const spinner = create_spinner();
+						let input_el;
+						function receive_input() {
+							return html`
+								<textarea ${ref(el => input_el = el)}></textarea><br>
+								<button ${on('click', apply_clicked.res)}>Apply</button>
+							`;
+						}
+						while (1) {
+							yield receive_input();
+							await apply_clicked
+							apply_clicked = differed();
+
+							const input = input_el.value.replace('\n', '');
+							input_el.value = '';
+
+							yield spinner;
+							const continue_clicked = differed();
+							try {
+								spinner.run();
+								await service_worker_api.apply_introduction(input);
+								yield html`
+									Introduction applied.  <button ${on('click', continue_clicked.res)}>Apply Another</button>
+								`;
+								await continue_clicked;
+							} catch (e) {
+								spinner.error();
+								console.error(e);
+								yield html`
+									${spinner}
+									<button ${on('click', continue_clicked.res)}>Retry</button>
+								`;
+								await continue_clicked;
+							}
+						}
+					})()}
+				</details>
+			`;
+			})()}
+			<hr>
+		`, this.shadowRoot);
 
 		spinner.run('Initializing...');
 		try {
@@ -37,9 +128,27 @@ class Web3Friends extends Base {
 		} catch {
 			spinner.error('Failed.');
 			await wrap(NEVER);
-		} finally {
-			spinner.complete('Initialized.');
 		}
+		spinner.complete('Initialized.');
+
+		// Handle introduction urls:
+		await (async () => {
+			if (window.location.hash.slice(0, 8) == '#intros=') {
+				let introductions;
+				try {
+					introductions = JSON.parse(window.location.hash.slice(8));
+				} catch (e) {
+					console.warn('Malformed intros: ', e);
+					return;
+				}
+				for (const intro of introductions) {
+					await service_worker_api.make_friend(intro);
+				}
+			}
+		})();
+
+
+		await wrap(NEVER);
 	}
 }
 

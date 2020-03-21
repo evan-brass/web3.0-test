@@ -6,8 +6,9 @@ const service_worker_api = {
     create_self(public_key, private_key) {},
     push_info_self(public_key, auth, endpoint) {},
     get_self_intro(valid = 12) {},
-    peer_list() {}, // TODO: Not yet implemented
-    make_friend(input) {}
+    apply_introduction(input) {},
+     // Not yet implemented:
+    peer_list() {}
 };
 
 // Unique identifier for each rpc call.
