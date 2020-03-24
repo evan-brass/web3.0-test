@@ -22,11 +22,11 @@ function base64ToBuffer(base64) {
 function base64ToUrlBase64(str) {
 	return str.replace(/\+/g, "-")
 		.replace(/\//g, "_")
-		.replace(/=/g, "");
+		.replace(/=/g, ".");
 }
 
 function urlBase64ToBase64(str) {
-	return (str + "====".substr(str.length % 4))
+	return str.replace(/\./g, '=')
 		.replace(/\-/g, "+")
 		.replace(/\_/g, "/");
 }

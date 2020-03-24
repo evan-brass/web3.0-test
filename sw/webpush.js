@@ -41,6 +41,8 @@ async function make_info(type, client_public, server_public) {
 
 // Function just throws on error and returns nothing on success.
 function check_jwt(jwt, endpoint) {
+	return true;
+	// MAYBE: I think I'm checking this elsewhere...
 	const audience = new URL(endpoint).origin;
 	const body = JSON.parse(fromUrlBase64(jwt.split('.')[1]));
 	const experation = Number.parse(body.exp);
@@ -141,10 +143,10 @@ async function build_push_crypt(sub_public, auth, message_key_pair, salt) {
 
 async function push(
 	subscription, // { endpoint, auth, public }
-	as_public, // urlbase64 encoded public application server key
+	application_server_public_key, // urlbase64 encoded public application server key
 	jwt, 
 	data, // Array buffer
-	time_to_live = 5, // Store the message for 5 seconds if the user isn't available
+	time_to_live = 0, // Store the message for 5 seconds if the user isn't available
 	pad_mod = 0
 ) {
 	// Pad the data:
@@ -166,19 +168,20 @@ async function push(
 		true,
 		['deriveKey']
 	);
-	const message_dh_encoded = toUrlBase64(arrayToStr(await crypto.subtle.exportKey('raw', message_dh.publicKey)));	
+	const message_dh_encoded = base64ToUrlBase64(bufferToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', message_dh.publicKey)))).replace(/\./g, '');
 
 	// Build a random salt:
 	const salt = crypto.getRandomValues(new Uint8Array(16));
-	const salt_encoded = toUrlBase64(arrayToStr(salt));
+	const salt_encoded = base64ToUrlBase64(bufferToBase64(salt)).replace(/\./g, '');
 	
 	// Get the encryption key and nonce that we need:
-	const [encryption_key, nonce] = build_push_crypt(
-		subscription.public, 
-		subscription.auth, 
-		message_dh, 
+	const push_crypt = await build_push_crypt(
+		subscription.public_key,
+		subscription.auth,
+		message_dh,
 		salt
 	);
+	const [encryption_key, nonce] = push_crypt;
 
 	// Encrypt the message:
 	const body = await crypto.subtle.encrypt(
@@ -195,7 +198,7 @@ async function push(
 	headers.append('Encryption', `salt=${salt_encoded}`);
 	headers.append('Crypto-Key', `dh=${message_dh_encoded}`);
 	headers.append('Content-Encoding', 'aesgcm');
-	const as_public_encoded = toUrlBase64(arrayToStr(await crypto.subtle.exportKey('raw', as_public)));
+	const as_public_encoded = base64ToUrlBase64(bufferToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', application_server_public_key)))).replace(/\./g, '');
 	headers.append('Authorization', `vapid t=${jwt}, k=${as_public_encoded}`);
 	headers.append('ttl', time_to_live.toString());
 	

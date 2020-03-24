@@ -1,5 +1,7 @@
 // TODO: Switch to a module service worker when available.
 importScripts(
+	'./extern/pako/dist/pako.min.js',
+
 	'./sw/common.js',
 	'./sw/database.js',
 
@@ -10,20 +12,15 @@ importScripts(
 
 	'./sw/webpush.js',
 
-	'./sw/rpc-server.js'
+	'./sw/connection-port-handler.js',
+
+	'./sw/rpc-server.js',
+
+	'./sw/crypto-parameters.js',
+	'./sw/peer-meta.js',
+
+	'./sw/handle-message.js'
 );
-
-const peer_change_channels = new Set();
-
-const peer_base = {
-	public_key: false, // Pretty much the only required parameter here - populated on creation.
-	i_am: -1,
-	they_are: -1,
-	push_info: false,
-	jwts: [],
-	info_sent: false,
-	auth_until: false
-};
 
 self.addEventListener('install', event => {
 	event.waitUntil((async () => {
@@ -32,7 +29,8 @@ self.addEventListener('install', event => {
 		// const db = await get_database(DB_VERSION);
 		// db.transaction('')
 		// db.close();
-		await self.skipWaiting();
+		// Can't skip waiting anymore because we wouldn't get the message ports that the existing sw had.
+		// await self.skipWaiting();
 	})());
 });
 self.addEventListener('activate', event => {
@@ -52,12 +50,10 @@ self.addEventListener('pushsubscriptionchange', event => {
 
 self.addEventListener('push', event => {
 	event.waitUntil((async () => {
+		console.log('Got message!');
 		try {
-			const message = await parse_message(event.data.arrayBuffer());
-			// TODO: Apply the message if it modifies peer data
-			// TODO: Route the message to the right channel for the peer with that id or create one and make an incoming connection event.
-			// MAYBE: Invalidate existing connections if it is a push info change?
-			console.log(message);
+			const message = signaling_decoder.decode_message(event.data.arrayBuffer());
+			await handle_message(message);
 		} catch (e) {
 			console.warn(e);
 		}

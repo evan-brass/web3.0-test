@@ -1,4 +1,3 @@
-
 function make_sub_view(view, offset = 0, length = (view.byteLength - offset)) {
 	// offset = offset || 0;
 	// length = length || view.byteLength - offset;
@@ -34,13 +33,14 @@ const signaling_decoder = {
 				};
 			},
 			30: async function push_info(data) {
-				const auth = make_sub_view(data, 0, 16);
+				const auth_view = make_sub_view(data, 0, 16);
+				const auth = new Uint8Array(auth_view.buffer.slice(auth_view.byteOffset, auth_view.byteOffset + auth_view.byteLength));
 				// MAYBE: Probably don't need the key length if we're also assuming a ECDH P-256 key...
 				const key_length = data.getUint8(16);
-				const public_key = await crypto.subtle.importKey('raw', make_sub_view(data, 17, key_length), {
+				const public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('raw', make_sub_view(data, 17, key_length), {
 					name: 'ECDH',
 					namedCurve: 'P-256'
-				}, true, []);
+				}, true, []));
 				const endpoint = decoder.decode(make_sub_view(data, 17 + key_length));
 				return {
 					type: 'push-info',
@@ -52,7 +52,8 @@ const signaling_decoder = {
 			40: async function common_jwt(data) {
 				const expiration = data.getUint32(0, false);
 				const signature_len = data.getUint8(4);
-				const signature = make_sub_view(data, 5, signature_len);
+				const signature_view = make_sub_view(data, 5, signature_len);
+				const signature = new Uint8Array(data.buffer.slice(signature_view.byteOffset, signature_view.byteOffset + signature_view.byteLength));
 				let subscriber;
 				if (data.byteLength > (4 + 1 + signature_len)) {
 					subscriber = decoder.decode(make_sub_view(data, 4 + 1 + signature_len));
@@ -66,11 +67,17 @@ const signaling_decoder = {
 					subscriber
 				};
 			},
-			// TODO: Push Auth that uses default values and only sends experation + signature (And maybe subscriber)
-			50: async function sdp(data) {
+			50: async function sdp_offer(data) {
 				const sdp = decoder.decode(data);
 				return {
-					type: 'sdp',
+					type: 'sdp-offer',
+					sdp
+				};
+			},
+			51: async function sdp_answer(data) {
+				const sdp = decoder.decode(data);
+				return {
+					type: 'sdp-answer',
 					sdp
 				};
 			},
@@ -89,10 +96,12 @@ const signaling_decoder = {
 		}
 	},
 	decode_message(arr_buf) {
-		const whole_message = new DataView(arr_buf);
+		const unzipped = (pako.inflate(new Uint8Array(arr_buf))).buffer;
+		// const unzipped = arr_buf;
+		const whole_message = new DataView(unzipped);
 		const signature_length = whole_message.getUint8(0); // Maybe unneccessary
-		const signature = new DataView(arr_buf, 1, signature_length);
-		const contents = new DataView(arr_buf, signature_length + 1);
+		const signature = new DataView(unzipped, 1, signature_length);
+		const contents = new DataView(unzipped, signature_length + 1);
 	
 		let sub_msg_index = 0;
 	
@@ -100,7 +109,7 @@ const signaling_decoder = {
 			signature, // Signature and contents are used to verify the origin of the message, potentially after getting an introduction sub-message with the public key that signed the message.
 			contents,
 			async *[Symbol.asyncIterator]() {
-				while (sub_msg_index + signature_length + 1 < arr_buf.byteLength) {
+				while (sub_msg_index + signature_length + 1 < unzipped.byteLength) {
 					const sub_length = contents.getUint16(sub_msg_index, false);
 	
 					yield await signaling_decoder.decode_sub_message(

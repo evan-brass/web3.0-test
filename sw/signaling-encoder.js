@@ -11,7 +11,7 @@ const signaling_encoder = {
 			return data;
 		}, 
 		i_am(i_am) {
-			return new Uint8Array.of(20, i_am);
+			return Uint8Array.of(20, i_am);
 		},
 		async push_info(auth, public_key, endpoint) {
 			if (auth.byteLength !== 16) throw new Error('Auth must have a length of 16.');
@@ -36,16 +36,19 @@ const signaling_encoder = {
 		// 	data.set(jwt_buf, 1);
 		// 	return data;
 		// },
-		async common_jwt(signing_key, endpoint, duration = 12 /* in hours */, subscriber) {
+		async common_jwt(signing_key, endpoint, duration = 12 /* in hours */, subscriber = 'mailto:evan-brass@example.com') {
 			const expiration = Math.round(Date.now() / 1000) + (duration * 60 * 60);
 			const encoder = new TextEncoder();
 			const audience = (new URL(endpoint)).origin;
 
-			const body_str = `{"aud":"${audience},"exp":${expiration},"sub":"${subscriber || 'mailto:no-reply@example.com'}"}`;
+			const body_str = `{"aud":"${audience}","exp":${expiration},"sub":"${subscriber || 'mailto:no-reply@example.com'}"}`;
+
+			const contents_str = `eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.${
+				// Sooooo... The to urlbase64 that I had been using doesn't seem to work deserialize back to base64 properly.  I switched to using '.' instead of just killing the '='. Killing the '=' seemed to work before when I was testing webpush so I think I'll kill the dots here just like before but use dots everywhere else
+				base64ToUrlBase64(bufferToBase64(encoder.encode(body_str))).replace(/\./g, '')
+			}`;
 			
-			const contents = encoder.encode(`eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.${
-				base64ToUrlBase64(bufferToBase64(encoder.encode(body_str)))
-			}`);
+			const contents = encoder.encode(contents_str);
 			const signature = new Uint8Array(await crypto.subtle.sign(
 				{
 					name: 'ECDSA',
@@ -79,10 +82,17 @@ const signaling_encoder = {
 			return data;
 		},
 		// TODO: Push Auth that uses default values and only sends experation + signature (And maybe subscriber)
-		sdp(sdp) {
+		sdp_offer(sdp) {
 			const sdp_buf = new TextEncoder().encode(sdp);
 			const data = new Uint8Array(sdp_buf.byteLength + 1);
 			data[0] = 50;
+			data.set(sdp_buf, 1);
+			return data;
+		},
+		sdp_answer(sdp) {
+			const sdp_buf = new TextEncoder().encode(sdp);
+			const data = new Uint8Array(sdp_buf.byteLength + 1);
+			data[0] = 51;
 			data.set(sdp_buf, 1);
 			return data;
 		},
@@ -125,17 +135,21 @@ const signaling_encoder = {
 			contents
 		));
 		const data = new Uint8Array(1 + signature.byteLength + contents.byteLength);
-		if (data.byteLength > 4094) {
+		data[0] = signature.byteLength;
+		data.set(signature, 1);
+		data.set(new Uint8Array(contents), 1 + signature.byteLength);
+
+		const zipped = pako.deflate(data);
+		// const zipped = data;
+
+		if (zipped.byteLength > 4094) {
 			if (enforce_4k) {
 				throw new Error('Message was too large.  Size: ', data.byteLength);
 			} else {
 				console.warn('Encoded a message that was larer than 4094 bytes. Size: ', data.byteLength);
 			}
 		}
-		data[0] = signature.byteLength;
-		data.set(signature, 1);
-		data.set(new Uint8Array(contents), 1 + signature.byteLength);
 
-		return data;
+		return zipped;
 	}
 };

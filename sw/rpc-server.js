@@ -1,4 +1,6 @@
 // Changes to the interfaces of these methods should be made to the rpc-client as well:
+
+let to_transfer;
 const service_worker_api = {
     // Self:
     async get_self() {
@@ -28,6 +30,8 @@ const service_worker_api = {
 
         return true;
     },
+
+    // Making friends:
     async get_self_intro(valid = 12) {
         const self = await get_self();
         const self_key = await crypto.subtle.importKey('jwk', self.private_key, {
@@ -81,19 +85,49 @@ const service_worker_api = {
             intro: base64ToUrlBase64(bufferToBase64(data))
         };
     },
-    // Peers:
-    async peer_list() {
-        const channel = new MessageChannel();
-
-    },
     async apply_introduction(input) {
-        const data = base64ToBuffer(urlBase64ToBase64(input.trim()));
+		const white_removed = input.replace(/[\s]/g, '');
+        const data = base64ToBuffer(urlBase64ToBase64(white_removed));
         const message = signaling_decoder.decode_message(data.buffer);
-        console.log('Message received: ', message);
-        for await (const sub_message of message) {
-            console.log('Sub message: ', sub_message);
+        await handle_message(message);
+    },
+
+    // Registering for peer notifications:
+    async get_peer_list_port() {
+        const channel = new MessageChannel();
+        to_transfer.push(channel.port2);
+		peer_list_ports.add(channel.port1);
+		
+		// Send all existing peers on the channel first:
+		const peers = await get_peers();
+		for (const peer of peers) {
+			channel.port1.postMessage(await peer_add_meta(peer));
+		}
+        
+        return channel.port2;
+    },
+    async get_incoming_port() {
+        const channel = new MessageChannel();
+        to_transfer.push(channel.port2);
+        incoming_ports.add(channel.port1);
+        
+        return channel.port2;
+    },
+    async start_connection(id) {
+        if (peer_connection_ports.has(id)) {
+			// Well... Supposedly there's no reliable way to detect port closing so I guess I'll just overwrite whoever was trying to connect before.
+            // throw new Error("Someone already has a connection with this peer.");
         }
-    }
+        const channel = new MessageChannel();
+        to_transfer.push(channel.port2);
+		peer_connection_ports.set(id, channel.port1);
+		channel.port1.onmessage = handle_connection_port(id);
+		// TODO: Check that the id is valid
+
+        return channel.port2;
+	}
+	
+	// TODO: Delete peer by id
 };
 
 // Map incoming calls from the port onto the local definition:
@@ -113,60 +147,20 @@ self.addEventListener('message', e => {
                 console.warn(new Error(
                     'Running local RPC even though fewer parameters were supplied than the function expects.'
                 ));
-            }
+			}
+			const transfer_list = [];
+			to_transfer = transfer_list;
             try {
                 let result = method(...params);
                 if (typeof result == 'object' && result.then) {
                     result = await result;
                 }
-                send_port.postMessage({ id, result });
+                send_port.postMessage({ id, result }, transfer_list);
             } catch (error) {
                 console.error(error);
-                send_port.postMessage({ id, error });
+                send_port.postMessage({ id, error }, transfer_list);
             }
         }
     })();
     if (e.waitUntil) e.waitUntil(run);
 });
-
-// Helper Methods for the sw api:
-async function get_self() {
-    const db = await get_database();
-    const trans = db.transaction('self', 'readonly');
-    const self_store = trans.objectStore('self');
-
-    const self = await wrap_request(self_store.get(0));
-
-    const completed = new Promise(resolve => trans.addEventListener('complete', resolve));
-    trans.commit();
-    await completed;
-    db.close();
-
-    return self;
-}
-async function get_peers() {
-    const db = await get_database();
-    const trans = db.transaction('peers', 'readonly');
-    const peers_store = trans.objectStore('peers');
-
-    const peers = await wrap_request(peers_store.getAll());
-
-    const completed = new Promise(resolve => trans.addEventListener('complete', resolve));
-    trans.commit();
-    await completed;
-    db.close();
-
-    return peers;
-}
-async function put_self(new_self) {
-    const db = await get_database();
-    const trans = db.transaction('self', 'readwrite');
-    const self_store = trans.objectStore('self');
-
-    await wrap_request(self_store.put(new_self, 0));
-
-    const completed = new Promise(resolve => trans.addEventListener('complete', resolve));
-    trans.commit();
-    await completed;
-    db.close();
-}

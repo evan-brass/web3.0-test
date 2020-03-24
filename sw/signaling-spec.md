@@ -3,9 +3,14 @@
 +--------01--------+-----------+---02---+-------------+...+---02---+-------------+
 | Signature Length | Signature | Length | Sub-Message |...| Length | Sub-Message |
 +------------------+-----------+--------+-------------+...+--------+-------------+
+
+The message is then zipped using the pako zlib implementation.
 ```
 * There can be any number of sub messages, just keep in mind the Wep-Push cap.
 * Length is big-endian
+
+## TODO:
+* What if messages arrive out of order?
 
 ## Reservations:
 * A signature length of 0 is reserved, and should currently cause a failure.
@@ -19,7 +24,7 @@ Sub Message header:                   | Type |
 Introduction:                         |  10  | Peer Public Key |
                                       +------+-----------------+
                                       +------+--02--+
-I-Am / Change I-Am:                   |  20  | I-Am |
+I-Am / Set I-Am:                      |  20  | I-Am |
                                       +------+------+
                                       +------+--16--+-----01-----+---------------+----------+
 Push Info:                            |  30  | Auth | Key Length | Push Pub. Key | Endpoint |
@@ -27,9 +32,12 @@ Push Info:                            |  30  | Auth | Key Length | Push Pub. Key
                                       +------+-----04-----+--------01--------+-----------+--------------+
 Push Auth - Common JWT:               |  40  | expiration | Signature Length | Signature | [Subscriber] |
                                       +------+------------+------------------+-----------+--------------+
-                                      +------+-----------------+
-SDP Description:                      |  50  | SDP Description |
-                                      +------+-----------------+
+                                      +------+-----------+
+SDP Offer Description:                |  50  | SDP Offer |
+                                      +------+-----------+
+                                      +------+------------+
+SDP Answer Description:               |  51  | SDP Answer |
+                                      +------+------------+
                                       +------+---------------+
 ICE Candidate:                        |  60  | ICE Candidate |
                                       +------+---------------+

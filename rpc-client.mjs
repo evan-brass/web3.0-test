@@ -5,10 +5,13 @@ const service_worker_api = {
     get_self() {},
     create_self(public_key, private_key) {},
     push_info_self(public_key, auth, endpoint) {},
+
     get_self_intro(valid = 12) {},
     apply_introduction(input) {},
-     // Not yet implemented:
-    peer_list() {}
+
+    get_peer_list_port() {},
+    get_incoming_port() {},
+    start_connection(id) {}
 };
 
 // Unique identifier for each rpc call.

@@ -5,6 +5,7 @@ import html from './extern/js-min/src/templating/html.mjs';
 import css from './extern/js-min/src/templating/css.mjs';
 import on from './extern/js-min/src/templating/users/on.mjs';
 import ref from './extern/js-min/src/templating/users/ref.mjs';
+import NodeArray from './extern/js-min/src/templating/users/node-array.mjs';
 
 import Base from './extern/js-min/src/custom-elements/base.mjs';
 
@@ -19,6 +20,8 @@ import differed from './extern/js-min/src/lib/differed.mjs';
 
 import create_spinner from './ui/spinner.mjs';
 
+import './ui/peer-item.mjs';
+
 class Web3Friends extends Base {
 	async run(signal) {
 		const wrap = wrap_signal(signal);
@@ -26,6 +29,13 @@ class Web3Friends extends Base {
 		mount(css`
 			:host {
 				display: block;
+			}
+			ul {
+				padding: 0;
+			}
+			li {
+				display: block;
+				list-style: none;
 			}
 		`, this.shadowRoot);
 
@@ -54,7 +64,7 @@ class Web3Friends extends Base {
 								let intro_out = intro.match(/.{1,30}/g).join('\n');
 								// let intro_out = intro;
 								yield html`
-									<pre style="margin-inline: auto; inline-size: fit-content;">${intro_out}</pre>
+									<pre style="margin-inline: auto; width: fit-content; inline-size: fit-content;">${intro_out}</pre>
 									This token is valid until <date >${valid_until.toLocaleDateString()} ${valid_until.toLocaleTimeString()}</date><br>
 									<button ${on('click', generate_clicked.res)}>Regenerate</button>
 								`;
@@ -93,7 +103,7 @@ class Web3Friends extends Base {
 							await apply_clicked
 							apply_clicked = differed();
 
-							const input = input_el.value.replace('\n', '');
+							const input = input_el.value;
 							input_el.value = '';
 
 							yield spinner;
@@ -120,6 +130,25 @@ class Web3Friends extends Base {
 			`;
 			})()}
 			<hr>
+			<h1>Friends:</h1>
+			<ul>
+				${(async () => {
+					const friend_list = new NodeArray();
+
+					const updates_port = await service_worker_api.get_peer_list_port();
+
+					updates_port.onmessage = ({data}) => {
+						friend_list.array.push(html`
+							<li>
+								<peer-item peerid="${data.id}" peerreachable="${data.reachable}">
+								</peer-item>
+							</li>
+						`);
+					};
+
+					return friend_list;
+				})()}
+			</ul>
 		`, this.shadowRoot);
 
 		spinner.run('Initializing...');
@@ -142,7 +171,7 @@ class Web3Friends extends Base {
 					return;
 				}
 				for (const intro of introductions) {
-					await service_worker_api.make_friend(intro);
+					await service_worker_api.apply_introduction(intro);
 				}
 			}
 		})();
