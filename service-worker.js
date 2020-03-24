@@ -10,10 +10,11 @@ importScripts(
 	'./sw/signaling-decoder.js',
 	'./sw/signaling-encoder.js',
 
-	'./sw/webpush.js',
+	// './sw/webpush.js',
 
 	'./sw/connection-port-handler.js',
 
+	'./sw/push.js',
 	'./sw/rpc-server.js',
 
 	'./sw/crypto-parameters.js',
@@ -51,11 +52,9 @@ self.addEventListener('pushsubscriptionchange', event => {
 self.addEventListener('push', event => {
 	event.waitUntil((async () => {
 		console.log('Got message!');
-		try {
+		if (event.data) {
 			const message = signaling_decoder.decode_message(event.data.arrayBuffer());
 			await handle_message(message);
-		} catch (e) {
-			console.warn(e);
 		}
 	})());
 });

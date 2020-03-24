@@ -41,47 +41,7 @@ function handle_connection_port(id) {
 		// TODO: If the message is too big, send it in multiple messages?  (How keep order of messages / make sure that they are received in proper order.)
 		// TODO: Queue up multiple messages if it's small?  Send anyway if no messages come in within a certain time frame?
 
-		const peer_public_key = await crypto.subtle.importKey('jwk', peer.public_key, {
-			name: 'ECDSA',
-			namedCurve: 'P-256'
-		}, true, []);
-		const subscription = {
-			auth: peer.push_info.auth,
-			endpoint: peer.push_info.endpoint,
-			public_key: await crypto.subtle.importKey('jwk', peer.push_info.public_key, {
-				name: 'ECDH',
-				namedCurve: 'P-256'
-			}, true, [])
-		};
-		const min_expiration = (Date.now() / 1000) + 5 * 60; // Must be valid for at least 5 minutes
-		const max_expiration = min_expiration + 23 * 60 * 60; // Can't be valid for more than ~23hr.
-		let jwt_obj = false;
-		for (const candidate of peer.jwts) {
-			if (candidate.expiration < min_expiration) {
-				// TODO: remove jwt because it's not useful anymore
-			} else if (candidate.expiration > max_expiration) {
-				// Not useful for this message but could be useful in the future.
-			} else {
-				// Found a good one.
-				jwt_obj = candidate;
-				break;
-			}
-		}
-		if (!jwt_obj) {
-			throw new Error("Peer isn't currently reachable.");
-		}
-		const encoder = new TextEncoder();
-		const audience = (new URL(peer.push_info.endpoint)).origin;
-		const body_str = `{"aud":"${audience}","exp":${jwt_obj.expiration},"sub":"${jwt_obj.subscriber}"}`;
-
-		const jwt = `eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.${
-			// The replace is required as explained over in the signaling-encoder.
-			base64ToUrlBase64(bufferToBase64(encoder.encode(body_str))).replace(/\./g, '')
-		}.${
-			base64ToUrlBase64(bufferToBase64(jwt_obj.signature)).replace(/\./g, '')
-		}`;
-
-		await push(subscription, peer_public_key, jwt, message_buffer);
+		await push(peer, message_buffer, true);
 		// TODO: Handle push errors (remove push_info if 401-moved or 404 for example)
 	};
 }

@@ -28,6 +28,8 @@ const service_worker_api = {
 		};
 		await put_self(self);
 
+		// test_push(self);
+
 		return true;
 	},
 

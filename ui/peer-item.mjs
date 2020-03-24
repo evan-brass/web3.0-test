@@ -56,7 +56,7 @@ class PeerItem extends props({
 			await clicked;
 
 			const spinner = create_spinner();
-			let port;
+			let port, pc, stream;
 			try {
 				// Get video /audio stream right after click so that it counts as user interaction:
 				const stream_prom = navigator.mediaDevices.getUserMedia({
@@ -74,7 +74,7 @@ class PeerItem extends props({
 				`;
 				spinner.run();
 
-				const stream = await stream_prom;
+				stream = await stream_prom;
 
 				local_video.srcObject = stream;
 				local_video.play();
@@ -82,7 +82,7 @@ class PeerItem extends props({
 				port = await service_worker_api.start_connection(this.peerid.valueOf());
 
 				// Setup Handlers:
-				const pc = new RTCPeerConnection();
+				pc = new RTCPeerConnection();
 				pc.ontrack = ({ streams }) => {
 					remote_video.srcObject = streams[0];
 					remote_video.play();
@@ -152,6 +152,11 @@ class PeerItem extends props({
 				spinner.error();
 				await delay(1000);
 			} finally {
+				// Cleanup:
+				pc.close();
+				for (const track of stream.getTracks()) {
+					stream.removeTrack(track);
+				}
 				if (port) {
 					port.close();
 				}
