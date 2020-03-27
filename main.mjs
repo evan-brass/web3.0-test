@@ -20,24 +20,15 @@ import differed from './extern/js-min/src/lib/differed.mjs';
 
 import create_spinner from './ui/spinner.mjs';
 
-import './ui/peer-item.mjs';
+import PeerItem from './ui/peer-item.mjs';
+
+import main_css from './main.css.mjs';
 
 class Web3Friends extends Base {
 	async run(signal) {
 		const wrap = wrap_signal(signal);
 
-		mount(css`
-			:host {
-				display: block;
-			}
-			ul {
-				padding: 0;
-			}
-			li {
-				display: block;
-				list-style: none;
-			}
-		`, this.shadowRoot);
+		mount(main_css, this.shadowRoot);
 
 		const spinner = create_spinner();
 		mount(html`
@@ -138,11 +129,9 @@ class Web3Friends extends Base {
 					const updates_port = await service_worker_api.get_peer_list_port();
 
 					updates_port.onmessage = ({data}) => {
+						const peer = new PeerItem(data.id);
 						friend_list.array.push(html`
-							<li>
-								<peer-item peerid="${data.id}" peerreachable="${data.reachable}">
-								</peer-item>
-							</li>
+							<li>${peer}</li>
 						`);
 					};
 
@@ -154,9 +143,9 @@ class Web3Friends extends Base {
 		spinner.run('Initializing...');
 		try {
 			await wrap(initialized);
-		} catch {
+		} catch (e) {
 			spinner.error('Failed.');
-			await wrap(NEVER);
+			throw e;
 		}
 		spinner.complete('Initialized.');
 

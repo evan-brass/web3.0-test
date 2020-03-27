@@ -4,12 +4,51 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Test static hosted P2P web-app</title>
-	<link rel="stylesheet" href="./main.css">
+	<style>
+		html {
+			overflow-y: scroll;
+			overflow-block: scroll;
+		}
+		body {
+			max-width: 32em;
+			padding: 1em;
+			margin: 0 auto;
+			/* font-family: 'Lora', serif; */
+			/* text-align: justify; */
+			/* text-justify: auto; */
+		}
+
+		:focus {
+			outline-color: rebeccapurple;
+			outline-width: 1px;
+			outline-offset: 1em;
+		}
+		h1, h2, h3, h4, h5, h6 {
+			margin: 0;
+			/* font-family: 'Raleway', sans-serif; */
+		}
+		h1 {
+			font-size: 2em;
+		}
+		h2 {
+			font-size: 1.5em;
+		}
+		h3, h4, h5, h6 {
+			font-size: 1em;
+		}
+
+		p {
+			margin: 0;
+		}
+		p + p {
+			margin-block-start: 0.5em;
+		}
+	</style>
 </head>
 <body>
 	<web3-friends></web3-friends>
 	<script type="module" src="./main.mjs"></script>
-	<script type="module">
+	<script type="_module">
 		const con1 = new RTCPeerConnection();
 		const con2 = new RTCPeerConnection();
 		con1.onicecandidate = ({ candidate }) => io.send({ candidate });

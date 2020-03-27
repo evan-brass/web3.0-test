@@ -137,8 +137,8 @@ export default (async () => {
 					last_error = e;
 				}
 			}
-			console.error(last_error);
-			throw new Error('Unable to aquire Push Notification Permission (retried 4 times).');
+			console.error('Unable to aquire Push Notification Permission (retried 4 times).', last_error);
+			throw last_error;
 		}]
 	];
 	let previous_results = [];

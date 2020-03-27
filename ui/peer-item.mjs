@@ -4,11 +4,8 @@ import mount from '../extern/js-min/src/templating/mount.mjs';
 import html from '../extern/js-min/src/templating/html.mjs';
 import css from '../extern/js-min/src/templating/css.mjs';
 import on from '../extern/js-min/src/templating/users/on.mjs';
-import ref from '../extern/js-min/src/templating/users/ref.mjs';
-import NodeArray from '../extern/js-min/src/templating/users/node-array.mjs';
 
 import Base from '../extern/js-min/src/custom-elements/base.mjs';
-import props from '../extern/js-min/src/custom-elements/props.mjs';
 
 import LiveData from '../extern/js-min/src/reactivity/live-data.mjs';
 
@@ -17,157 +14,175 @@ import wrap_signal from '../extern/js-min/src/cancellation/wrap-signal.mjs';
 import NEVER from '../extern/js-min/src/lib/never.mjs';
 import delay from '../extern/js-min/src/lib/delay.mjs';
 
-import initialized from '../init.mjs';
-
 import differed from '../extern/js-min/src/lib/differed.mjs';
 
-import create_spinner from '../ui/spinner.mjs';
 
-class PeerItem extends props({
-	peerid: {
-		type: Number,
-		default: -1
-	},
-	peerreachable: {
-		type: Boolean,
-		default: false
+import create_spinner from './spinner.mjs';
+import once_button from './once-button.mjs';
+
+import peer_item_css from './peer-item.css.mjs';
+
+export default class PeerItem extends Base {
+	constructor(id) {
+		super();
+
+		this.peer_id = id;
 	}
-}, Base) {
 	async run(signal) {
-		const wrap = wrap_signal(signal);
+		const peer_connection = new RTCPeerConnection();
+		const peer_port = await service_worker_api.get_peer_port(this.peer_id);
 
-		const controls = new LiveData('Unreachable.');
-		const unmount = mount(html`
-			${css`
-				video {
-					max-width: 100%;
-					max-height: 100%;
-					display: block;
-				}
-			`}
-			${this.peerid} - ${controls}
-		`, this.shadowRoot);
-
-		while (this.peerreachable) {
-			const clicked = differed();
-			controls.value = html`
-				<button ${on('click', clicked.res)}>Video</button>
-			`;
-			await clicked;
-
-			const spinner = create_spinner();
-			let port, pc, stream;
-			try {
-				// Get video /audio stream right after click so that it counts as user interaction:
-				const stream_prom = navigator.mediaDevices.getUserMedia({
-					audio: true,
-					video: true
-				});
-
-				const remote_video = document.createElement('video');
-				const local_video = document.createElement('video');
-				const close_clicked = differed();
-				controls.value = html`
-					${spinner}<br>
-					${remote_video}${local_video}<br>
-					<button ${on('click', close_clicked.res)}>End Call</button>
-				`;
-				spinner.run();
-
-				stream = await stream_prom;
-
-				local_video.srcObject = stream;
-				local_video.play();
-
-				port = await service_worker_api.start_connection(this.peerid.valueOf());
-
-				// Setup Handlers:
-				pc = new RTCPeerConnection();
-				pc.ontrack = ({ streams }) => {
-					remote_video.srcObject = streams[0];
-					remote_video.play();
-				};
-				pc.onnegotiationneeded = async () => {
-					await pc.setLocalDescription(await pc.createOffer());
-					const { sdp, type } = pc.localDescription;
-
-					if (type != 'answer' && type != 'offer') {
-						console.warn(new Error('Unexpected SDP type: ', type));
+		const video_container = document.createElement('div');
+		
+		function make_vid(stream, autoplay = false) {
+			stream.onaddtrack = e => {
+				console.log('track added', e);
+			};
+			stream.onactive = e => {
+				console.log('stream active', e);
+			};
+			stream.oninactive = e => {
+				console.log('stream inactive', e);
+			};
+			const vid_el = document.createElement('video');
+			vid_el.srcObject = stream;
+			stream.oninactive = () => {
+				vid_el.remove();
+			};
+			/*
+			let live_tracks = 0;
+			for (const track of stream.getTracks()) {
+				++live_tracks;
+				track.onend = () => {
+					// When all tracks have ended, remove the video element.
+					if (!--live_tracks) {
+						vid_el.remove();
 					}
-
-					port.postMessage({
-						type: 'sdp-' + type,
-						sdp
-					});
-				};
-				pc.onicecandidate = ({ candidate }) => {
-					if (candidate != null) {
-						port.postMessage({
-							type: 'ice',
-							ice: candidate.candidate
-						});
-					}
-				};
-				port.onmessage = async ({ data }) => {
-					if (data.type == 'ice') {
-						await pc.addIceCandidate(data.ice);
-						return;
-					}
-					if (data.type == 'sdp-offer') {
-						if (!pc.signalingState == 'stable') {
-							if (!data.dominant) {
-								await pc.setLocalDescription({ type: "rollback" });
-							} else {
-								return;
-							}
-						}
-						await pc.setRemoteDescription({
-							sdp: data.sdp,
-							type: 'offer'
-						});
-						await pc.setLocalDescription(await pc.createAnswer());
-						const { sdp, type } = pc.localDescription;
-						port.postMessage({
-							type: 'sdp-' + type,
-							sdp
-						});
-					} else if (data.type == 'sdp-answer') {
-						await pc.setRemoteDescription({
-							sdp: data.sdp,
-							type: 'answer'
-						});
-					} else {
-						console.warn('Encountered an unknown message type:', data.type);
-					}
-				};
-
-				// Add streams:
-				for (const track of stream.getTracks()) {
-					pc.addTrack(track, stream);
-				}
-
-				await close_clicked;
-			} catch (e) {
-				console.error(e);
-				spinner.error();
-				await delay(1000);
-			} finally {
-				// Cleanup:
-				pc.close();
-				for (const track of stream.getTracks()) {
-					stream.removeTrack(track);
-				}
-				if (port) {
-					port.close();
 				}
 			}
+			*/
+			if (autoplay) {
+				video_container.appendChild(vid_el);
+				vid_el.play();
+			} else {
+				const btn = document.createElement('button');
+				btn.innerText = 'Accept Incoming Stream';
+				btn.onclick = () => {
+					btn.replaceWith(vid_el);
+					vid_el.play();
+				};
+				video_container.appendChild(btn);
+			}
+			return vid_el;
 		}
 
-		try {
-			await wrap(NEVER);
-		} finally {
-			unmount();
-		}
+		const unmount = mount(html`
+			${peer_item_css}
+			${this.peer_id} - ${(async function*() {
+				while (1) {
+					const share = differed();
+					yield html`<button ${on('click', share.res)}>Share audio+video</button>`;
+					await share;
+					try {
+						const stream = await navigator.mediaDevices.getUserMedia({
+							audio: true,
+							video: true
+						});
+
+						make_vid(stream, true);
+
+						// Add the tracks from this stream into the peer_connection
+						const sender_map = new WeakMap();
+						for (const track of stream.getTracks()) {
+							sender_map.set(track, peer_connection.addTrack(track, stream));
+						}
+
+						const stop_sharing = differed();
+						yield html`<button ${on('click', stop_sharing.res)}>Stop sharing</button>`;
+						await stop_sharing;
+
+						for (const track of stream.getTracks()) {
+							track.stop();
+							const sender = sender_map.get(track);
+							if (sender) {
+								peer_connection.removeTrack(sender);
+							}
+						}
+					} catch (e) {
+						console.error(e);
+					}
+				}
+			})()}<br>
+			${video_container}
+		`, this.shadowRoot);
+		
+		const stream_map = new WeakMap();
+		peer_connection.ontrack = (e) => {
+			const { streams } = e;
+			console.log('ontrack: ', e);
+			for (const stream of streams) {
+				let el = stream_map.get(stream);
+				if (!el) {
+					el = make_vid(stream);
+					stream_map.set(stream, el);
+				}
+			}
+		};
+		peer_connection.onnegotiationneeded = async () => {
+			await peer_connection.setLocalDescription(await peer_connection.createOffer());
+			const { sdp, type } = peer_connection.localDescription;
+
+			if (type != 'answer' && type != 'offer') {
+				console.warn(new Error('Unexpected SDP type: ', type));
+			}
+
+			peer_port.postMessage({
+				type: 'sdp-' + type,
+				sdp
+			});
+		};
+		peer_connection.onicecandidate = ({ candidate }) => {
+			if (candidate != null) {
+				peer_port.postMessage({
+					type: 'ice',
+					ice: JSON.stringify(candidate.toJSON())
+				});
+			}
+		};
+
+		peer_port.onmessage = async ({data}) => {
+			if (data.type == 'ice') {
+				await peer_connection.addIceCandidate(JSON.parse(data.ice));
+				return;
+			}
+			if (data.type == 'sdp-offer') {
+				if (!peer_connection.signalingState == 'stable') {
+					if (data.dominant) {
+						// If we're dominant then ignore the offer.
+						return;
+					} else {
+						await peer_connection.setLocalDescription({ type: "rollback" });
+					}
+				}
+				await peer_connection.setRemoteDescription({
+					sdp: data.sdp,
+					type: 'offer'
+				});
+				await peer_connection.setLocalDescription(await peer_connection.createAnswer());
+				const { sdp, type } = peer_connection.localDescription;
+				peer_port.postMessage({
+					type: 'sdp-' + type,
+					sdp
+				});
+			} else if (data.type == 'sdp-answer') {
+				await peer_connection.setRemoteDescription({
+					sdp: data.sdp,
+					type: 'answer'
+				});
+			} else {
+				console.warn('Encountered an unknown message type:', data.type);
+			}
+		};
 	}
 }
 

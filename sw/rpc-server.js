@@ -28,7 +28,42 @@ const service_worker_api = {
 		};
 		await put_self(self);
 
-		// test_push(self);
+		const encoder = new TextEncoder();
+
+		// self.jwts = [
+		// 	await (async () => {
+		// 		const PEER_ALGORITHM = {
+		// 			name: 'ECDSA',
+		// 			namedCurve: 'P-256',
+		// 			hash: 'SHA-256'
+		// 		};
+
+		// 		const subscriber = 'mailto:evan-brass@protonmail.com';
+		// 		const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
+
+		// 		const self_key = await crypto.subtle.importKey('jwk', self.private_key, PEER_ALGORITHM, false, ['sign']);
+		// 		const header = bufToURL64(encoder.encode(JSON.stringify({ 
+		// 			typ: "JWT", 
+		// 			alg: "ES256" 
+		// 		})));
+		// 		const body = bufToURL64(encoder.encode(JSON.stringify({
+		// 			aud: (new URL(self.push_info.endpoint).origin),
+		// 			exp: expiration,
+		// 			sub: subscriber
+		// 		})));
+		// 		const contents = encoder.encode(`${header}.${body}`);
+		
+		// 		const signature = new Uint8Array(await crypto.subtle.sign(PEER_ALGORITHM, self_key, contents));
+		
+		// 		return {
+		// 			subscriber,
+		// 			expiration,
+		// 			signature
+		// 		};
+		// 	})()
+		// ];
+
+		// await push(self, encoder.encode('Test Message'), true);
 
 		return true;
 	},
@@ -70,8 +105,7 @@ const service_worker_api = {
 			);
 			valid_i -= duration;
 		}
-
-		const data = await signaling_encoder.build(self_key, [
+		const data_buf = await signaling_encoder.build(self_key, [
 			await signaling_encoder.sub.introduction(self_public_key),
 			await signaling_encoder.sub.push_info(
 				self.push_info.auth,
@@ -80,17 +114,19 @@ const service_worker_api = {
 			),
 			...jwts
 		]);
-		console.log('Created a self introduction that is valid for 12 hours with a size of: ', data.byteLength);
+		const data = (new TextDecoder()).decode(data_buf);
+		console.log('Created a self introduction that is valid for 12 hours with a size of: ', data_buf.byteLength);
 		const valid_until_stamp = Date.now() + (valid * 60 * 60 * 1000);
 		return {
 			valid_until: new Date(valid_until_stamp),
-			intro: base64ToUrlBase64(bufferToBase64(data))
+			intro: data
 		};
 	},
 	async apply_introduction(input) {
 		const white_removed = input.replace(/[\s]/g, '');
-		const data = base64ToBuffer(urlBase64ToBase64(white_removed));
-		const message = signaling_decoder.decode_message(data.buffer);
+		// const data = base64ToBuffer(white_removed);
+		// const message = signaling_decoder.decode_message(data.buffer);
+		const message = signaling_decoder.decode_message(white_removed);
 		await handle_message(message);
 	},
 
@@ -108,25 +144,24 @@ const service_worker_api = {
 		
 		return channel.port2;
 	},
-	async get_incoming_port() {
-		const channel = new MessageChannel();
-		to_transfer.push(channel.port2);
-		incoming_ports.add(channel.port1);
-		
-		return channel.port2;
-	},
-	async start_connection(id) {
-		if (peer_connection_ports.has(id)) {
-			// Well... Supposedly there's no reliable way to detect port closing so I guess I'll just overwrite whoever was trying to connect before.
-			// throw new Error("Someone already has a connection with this peer.");
+	async get_peer_port(id) {
+		let port = peer_ports_unclaimed.get(id);
+		if (port) {
+			peer_ports_unclaimed.delete(id);
+		} else {
+			if (peer_ports.has(id)) {
+				console.warn('Overwriting existing peer port.');
+				peer_ports.get(id).onmessage = undefined;
+			}
+			const channel = new MessageChannel();
+			peer_ports.set(id, channel.port1);
+			channel.port1.onmessage = handle_peer_port(id);
+			
+			port = channel.port2;
 		}
-		const channel = new MessageChannel();
-		to_transfer.push(channel.port2);
-		peer_connection_ports.set(id, channel.port1);
-		channel.port1.onmessage = handle_connection_port(id);
-		// TODO: Check that the id is valid
 
-		return channel.port2;
+		to_transfer.push(port);
+		return port;
 	}
 	
 	// TODO: Delete peer by id
@@ -161,6 +196,7 @@ self.addEventListener('message', e => {
 			} catch (error) {
 				console.error(error);
 				send_port.postMessage({ id, error }, transfer_list);
+				throw error;
 			}
 		}
 	})();

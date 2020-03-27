@@ -10,8 +10,7 @@ const service_worker_api = {
 	apply_introduction(input) {},
 
 	get_peer_list_port() {},
-	get_incoming_port() {},
-	start_connection(id) {}
+	get_peer_port(id) {},
 };
 
 // Unique identifier for each rpc call.

@@ -23,7 +23,7 @@ importScripts(
 	'./sw/handle-message.js'
 );
 
-self.addEventListener('install', event => {
+self.oninstall = event => {
 	event.waitUntil((async () => {
 		console.log('sw installing');
 		// TODO: Split DB upgrade between install (addition changes) and activate (cleanup changes)
@@ -33,28 +33,29 @@ self.addEventListener('install', event => {
 		// Can't skip waiting anymore because we wouldn't get the message ports that the existing sw had.
 		// await self.skipWaiting();
 	})());
-});
-self.addEventListener('activate', event => {
+};
+self.onactivate = event => {
 	event.waitUntil((async () => {
 		console.log('sw activating');
 		await self.clients.claim();
 	})());
-});
+};
 
-self.addEventListener('pushsubscriptionchange', event => {
+self.onpushsubscriptionchange = event => {
 	event.waitUntil((async () => {
 		console.warn(event);
 		// TODO: Invalidate the info_sent field on all of the peers + Apply new subscription info to self
 		await NEVER;
 	})());
-});
+};
 
-self.addEventListener('push', event => {
+self.onpush = event => {
+	// Actual message handling:
 	event.waitUntil((async () => {
 		console.log('Got message!');
 		if (event.data) {
-			const message = signaling_decoder.decode_message(event.data.arrayBuffer());
+			const message = signaling_decoder.decode_message(event.data.text());
 			await handle_message(message);
 		}
 	})());
-});
+};

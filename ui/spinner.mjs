@@ -5,6 +5,7 @@ import css from '../extern/js-min/src/templating/css.mjs';
 
 import LiveData from '../extern/js-min/src/reactivity/live-data.mjs';
 
+import spinner_css from './spinner.css.mjs';
 
 export default function create_spinner() {
 	let state = new LiveData('dormant');
@@ -28,7 +29,7 @@ export default function create_spinner() {
 		},
 		get [User]() {
 			return html`
-				${css`@import url("./css/spinner.css");`}
+				${spinner_css}
 				<output class="spinner" ${ref(async (spinner, signal) => {
 					const classes = ['dormant', 'running', 'errored', 'completed'];
 					for await (const s of state) {

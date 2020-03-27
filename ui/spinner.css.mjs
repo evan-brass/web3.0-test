@@ -1,3 +1,6 @@
+import css from '../extern/js-min/src/templating/css.mjs';
+
+export default css`
 .spinner > span {
 	display: inline-block;
 	position: relative;
@@ -103,3 +106,4 @@
 		border-color: tomato;
 	}
 }
+`;

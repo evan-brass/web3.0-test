@@ -96,7 +96,7 @@ const signaling_decoder = {
 		}
 	},
 	decode_message(arr_buf) {
-		const unzipped = (pako.inflate(new Uint8Array(arr_buf))).buffer;
+		const unzipped = (pako.inflate(base64ToBuffer(arr_buf))).buffer;
 		// const unzipped = arr_buf;
 		const whole_message = new DataView(unzipped);
 		const signature_length = whole_message.getUint8(0); // Maybe unneccessary

@@ -4,7 +4,7 @@
 | Signature Length | Signature | Length | Sub-Message |...| Length | Sub-Message |
 +------------------+-----------+--------+-------------+...+--------+-------------+
 
-The message is then zipped using the pako zlib implementation.
+The message is then zipped using the pako zlib implementation.  And then, since as far as I can tell Chrome (and maybe Firefox) won't actually deliver the push messages unless they are strings (even though there's an arrayBuffer option on the pushData), the zipped message is base64 encoded.  Actually, it gets delivered but the data field on the event is always null even though Chrome's devtools show the payload as a wacky string.
 ```
 * There can be any number of sub messages, just keep in mind the Wep-Push cap.
 * Length is big-endian

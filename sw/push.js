@@ -51,6 +51,15 @@ async function push(peer, contents, enforce_4k = true, ttl = 0, pad_mod = 0) {
 	data.set(contents, 2 + pad_len);
 	const padding_view = new DataView(data.buffer, 0, 2);
 	padding_view.setUint16(0, 0, true);
+
+	// Check if the message is within the size constraint
+	if (data.byteLength > 4096) {
+		if (enforce_4k) {
+			throw new Error("Message was too large.");
+		} else {
+			console.warn('Attempting to send a push with a message that is larger than 4kb');
+		}
+	}
 	
 	// Import the needed keys and base64 encode them
 	const peer_as_pub_key = await crypto.subtle.importKey('jwk', peer.public_key, AS_TYPE, true, []);
@@ -75,7 +84,8 @@ async function push(peer, contents, enforce_4k = true, ttl = 0, pad_mod = 0) {
 			}
 		}
 		if (!jwt_obj) {
-			throw new Error("Couldn't find a JWT to send this message with.  The peer is currently unreachable.");
+			// TODO: Send a notification on the peer updates that this peer is no longer reachable.
+			throw new Error("Couldn't find a JWT to send this message with.  This means that the peer is unreachable.");
 		}
 		const encoder = new TextEncoder();
 		const audience = (new URL(peer.push_info.endpoint)).origin;
@@ -88,22 +98,6 @@ async function push(peer, contents, enforce_4k = true, ttl = 0, pad_mod = 0) {
 			bufToURL64(jwt_obj.signature)
 		}`;
 		return jwt;
-		// Old Testing code:
-		// const header = bufToURL64(encoder.encode(JSON.stringify({ 
-		// 	typ: "JWT", 
-		// 	alg: "ES256" 
-		// })));
-		// const body = bufToURL64(encoder.encode(JSON.stringify({
-		// 	aud: (new URL(self.push_info.endpoint).origin),
-		// 	exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
-		// 	sub: 'mailto:evan-brass@protonmail.com'
-		// })));
-		// const contents = encoder.encode(`${header}.${body}`);
-		
-		// const signature_buf = await crypto.subtle.sign(AS_TYPE, self_as_pri_key, contents);
-		// const signature = bufToURL64(new Uint8Array(signature_buf));
-
-		// return `${header}.${body}.${signature}`;
 	})();
 
 	// Generate Message dh and salt
@@ -189,7 +183,7 @@ async function push(peer, contents, enforce_4k = true, ttl = 0, pad_mod = 0) {
 	headers.append('Authorization', `WebPush ${jwt}`);
 	headers.append('Crypto-Key', `dh=${message_dh_pub_key_encoded}; p256ecdsa=${peer_as_pub_key_encoded}`);
 	headers.append('Encryption', `salt=${salt_encoded}`);
-	headers.append('TTL', (0).toString());
+	headers.append('TTL', ttl.toString());
 	headers.append('Content-Length', encrypted.byteLength.toString());
 	headers.append('Content-Type', 'application/octet-stream');
 	headers.append('Content-Encoding', 'aesgcm');

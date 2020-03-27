@@ -11,7 +11,11 @@ const signaling_encoder = {
 			return data;
 		}, 
 		i_am(i_am) {
-			return Uint8Array.of(20, i_am);
+			const data = new Uint8Array(3);
+			const i_am_view = new DataView(data.buffer, 1, 2);
+			i_am_view.setUint16(0, i_am, false);
+			data[0] = 20;
+			return data;
 		},
 		async push_info(auth, public_key, endpoint) {
 			if (auth.byteLength !== 16) throw new Error('Auth must have a length of 16.');
@@ -29,13 +33,6 @@ const signaling_encoder = {
 
 			return data;
 		},
-		// jwt(jwt) {
-		// 	const jwt_buf = new TextEncoder().encode(jwt);
-		// 	const data = new Uint8Array(jwt_buf.byteLength + 1);
-		// 	data[0] = 40;
-		// 	data.set(jwt_buf, 1);
-		// 	return data;
-		// },
 		async common_jwt(signing_key, endpoint, duration = 12 /* in hours */, subscriber = 'mailto:evan-brass@example.com') {
 			const expiration = Math.round(Date.now() / 1000) + (duration * 60 * 60);
 			const encoder = new TextEncoder();
@@ -139,7 +136,10 @@ const signaling_encoder = {
 		data.set(signature, 1);
 		data.set(new Uint8Array(contents), 1 + signature.byteLength);
 
-		const zipped = pako.deflate(data);
+		// const zipped = pako.deflate(data);
+		const zipped = (new TextEncoder()).encode(bufferToBase64(pako.deflate(data)));
+
+
 		// const zipped = data;
 
 		if (zipped.byteLength > 4094) {
