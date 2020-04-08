@@ -49,6 +49,120 @@
 	<web3-friends></web3-friends>
 	<script type="module" src="./main.mjs"></script>
 	<script type="_module">
+		function create_subject() {
+			return {
+				_waiters: [],
+				_unhandled: [],
+				add(item) {
+					if (this._waiters.length) {
+						const temp = this._waiters;
+						this._waiters = [];
+						
+						temp.forEach(func => func(item));
+					} else {
+						this._unhandled.push(item);
+					}
+				},
+				then(func) {
+					this._waiters.push(func);
+				},
+				async *[Symbol.asyncIterator]() {
+					while(1) {
+						if (this._unhandled.length) {
+							yield this._unhandled.shift();
+						} else {
+							yield await this;
+						}
+					}
+				}
+			};
+		}
+		function delay(ms) {
+			return new Promise(resolve => {
+				setTimeout(resolve, ms);
+			});
+		}
+
+		const ws = new WebSocket('wss://push.services.mozilla.com');
+		const messages = create_subject();
+		ws.onmessage = e => messages.add(e);
+		ws.onopen = async () => {
+			console.log('WS open.');
+
+			let uaid = "";
+
+			await delay(100);
+
+			ws.send(JSON.stringify({ 
+				messageType: "hello", 
+				uaid, 
+				use_webpush: true,
+				channelIDs: [] 
+			}));
+			for await (const e of messages) {
+				const message = JSON.parse(e.data);
+				console.log(message);
+				if (message.messageType == 'hello') {
+					uaid = message.uaid;
+					if (message.status == 200) {
+						break;
+					}
+				}
+			}
+			ws.send(JSON.stringify({
+				messageType: "register",
+				channelID: "d9b74644-4f97-46aa-b8fa-9393985cd6cd"
+			}));
+			for await (const e of messages) {
+				const message = JSON.parse(e.data);
+				console.log(message);
+			}
+		};
+		ws.onclose = e => console.log('WS closed: ', e);
+		ws.onerror = e => console.error('WS error: ', e);
+	</script>
+	<script type="_module">
+		(async () => {
+			const k1 = await crypto.subtle.generateKey({
+				name: 'ECDH',
+				namedCurve: 'P-256'
+			}, true, ['deriveKey']);
+			const k2 = await crypto.subtle.generateKey({
+				name: 'ECDH',
+				namedCurve: 'P-256'
+			}, true, ['deriveKey']);
+
+			// Derive the shared key:
+			const shared_a = await crypto.subtle.deriveKey({
+					name: 'ECDH',
+					public: k2.publicKey
+				},
+				k1.privateKey,
+				{
+					name: 'AES-GCM',
+					length: 256
+				},
+				true,
+				['encrypt']
+			);
+			console.log(await crypto.subtle.exportKey('jwk', shared_a));
+
+			const shared_b = await crypto.subtle.deriveKey({
+					name: 'ECDH',
+					public: k1.publicKey
+				},
+				k2.privateKey,
+				{
+					name: 'AES-GCM',
+					length: 256
+				},
+				true,
+				['encrypt']
+			);
+			console.log(await crypto.subtle.exportKey('jwk', shared_b));
+		})();
+	</script>
+	<script type="_module">
 		const con1 = new RTCPeerConnection();
 		const con2 = new RTCPeerConnection();
 		con1.onicecandidate = ({ candidate }) => io.send({ candidate });
