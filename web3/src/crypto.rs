@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use js_sys::{Promise, Uint8Array};
@@ -38,6 +40,11 @@ impl From<Box<[u8]>> for ECDSAPublicKey {
 		}
 	}
 }
+impl Debug for ECDSAPublicKey {
+	fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+		self.data[..].fmt(formatter)
+	}
+}
 impl ECDSAPublicKey {
 	pub async fn verify(&self, signature: &ECDSASignature, message: &[u8]) -> bool {
 		let jsvalue = JsFuture::from(ecdsa_verify(&self.data, &signature.data, message)).await.expect("Failure inside ecdsa_verify!");
@@ -67,6 +74,11 @@ impl From<Box<[u8]>> for ECDHPublicKey {
 		}
 	}
 }
+impl Debug for ECDHPublicKey {
+	fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+		self.data[..].fmt(formatter)
+	}
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ECDSASignature {
@@ -87,6 +99,11 @@ impl From<Box<[u8]>> for ECDSASignature {
 		Self {
 			data
 		}
+	}
+}
+impl Debug for ECDSASignature {
+	fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+		self.data[..].fmt(formatter)
 	}
 }
 

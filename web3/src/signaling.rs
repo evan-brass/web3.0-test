@@ -5,13 +5,13 @@ use postcard;
 
 use super::crypto;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct PushInfo {
 	pub public_key: crypto::ECDHPublicKey,
 	pub auth: [u8; 16],
 	pub endpoint: String
 }
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct PushAuth {
 	pub expiration: u32, // u64?
 	pub signature: crypto::ECDSASignature,
@@ -27,20 +27,20 @@ impl Ord for PushAuth {
 		self.expiration.cmp(&other.expiration)
 	}
 }
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ICECandidate {
 	pub candidate: String,
 	pub username_fragment: Option<String>,
 	pub sdp_media_id: Option<u16>,
 	pub sdp_media_line_index: Option<u16>
 }
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum SDPDescription {
 	Offer(String),
 	Answer(String)
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PushMessageData {
 	pub push_info: Option<PushInfo>,
 	pub push_auth: Vec<PushAuth>,
@@ -60,7 +60,7 @@ impl PushMessageData {
 	}
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct PushMessage {
 	pub public_key: crypto::ECDSAPublicKey,
 	pub signature: crypto::ECDSASignature,
