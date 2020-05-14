@@ -6,8 +6,6 @@ importScripts(
 	'./sw/common.js',
 	'./sw/database.js',
 
-	'./sw/base64.js',
-
 	// './sw/webpush.js',
 
 	'./sw/connection-port-handler.js',
