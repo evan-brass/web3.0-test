@@ -2,15 +2,11 @@
 importScripts(
 	'./sw/wasm-runtime.js',
 	'./web3/pkg/web3.js',
-	'./extern/pako/dist/pako.min.js',
 
 	'./sw/common.js',
 	'./sw/database.js',
 
 	'./sw/base64.js',
-
-	'./sw/signaling-decoder.js',
-	'./sw/signaling-encoder.js',
 
 	// './sw/webpush.js',
 
