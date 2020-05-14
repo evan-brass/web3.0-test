@@ -96,7 +96,17 @@ const signaling_decoder = {
 		}
 	},
 	decode_message(arr_buf) {
-		const unzipped = (pako.inflate(base64ToBuffer(arr_buf))).buffer;
+		console.time('Rust version');
+		const test_unzipped = wasm_bindgen.handle_push(arr_buf);
+		console.timeEnd('Rust version');
+		console.log(test_unzipped);
+		const unzipped = test_unzipped.buffer;
+
+		// console.time('Pako version');
+		// const unzipped = (pako.inflate(base64ToBuffer(arr_buf))).buffer;
+		// console.timeEnd('Pako version');
+		// console.log(unzipped);
+
 		// const unzipped = arr_buf;
 		const whole_message = new DataView(unzipped);
 		const signature_length = whole_message.getUint8(0); // Maybe unneccessary

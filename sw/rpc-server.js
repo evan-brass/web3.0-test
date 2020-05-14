@@ -4,130 +4,42 @@ let to_transfer;
 const service_worker_api = {
 	// Self:
 	async get_self() {
-		return get_self();
+		const output = wasm_bindgen.get_self();
+		if (output !== undefined) {
+			output.public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('raw', Uint8Array.from(output.public_key.data), ecdsa_params, true, ['verify']))
+			output.private_key = JSON.parse(output.private_key.jwk);
+
+			if ('push_info' in output) {
+				output.push_info.public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('raw', Uint8Array.from(output.push_info.public_key.data), ecdsa_params, true, []))
+			}
+		}
+		return output;
 	},
 	async create_self(public_key, private_key) {
-		const self_base = {
-			public_key: false,
-			private_key: false,
-			push_info: false
-		};
-		const self = Object.assign({}, self_base);
-		self.public_key = public_key;
-		self.private_key = private_key;
-		await put_self(self);
+		const public_key_bytes = new Uint8Array(await crypto.subtle.exportKey('raw', await crypto.subtle.importKey('jwk', public_key, ecdsa_params, true, [])));
+		await wasm_bindgen.create_self(public_key_bytes, JSON.stringify(private_key));
 
 		return true;
 	},
 	async push_info_self(public_key, auth, endpoint) {
-		const self = await get_self();
-		self.push_info = {
-			public_key,
-			auth,
-			endpoint
-		};
-		await put_self(self);
-
-		const encoder = new TextEncoder();
-
-		// self.jwts = [
-		// 	await (async () => {
-		// 		const PEER_ALGORITHM = {
-		// 			name: 'ECDSA',
-		// 			namedCurve: 'P-256',
-		// 			hash: 'SHA-256'
-		// 		};
-
-		// 		const subscriber = 'mailto:evan-brass@protonmail.com';
-		// 		const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
-
-		// 		const self_key = await crypto.subtle.importKey('jwk', self.private_key, PEER_ALGORITHM, false, ['sign']);
-		// 		const header = bufToURL64(encoder.encode(JSON.stringify({ 
-		// 			typ: "JWT", 
-		// 			alg: "ES256" 
-		// 		})));
-		// 		const body = bufToURL64(encoder.encode(JSON.stringify({
-		// 			aud: (new URL(self.push_info.endpoint).origin),
-		// 			exp: expiration,
-		// 			sub: subscriber
-		// 		})));
-		// 		const contents = encoder.encode(`${header}.${body}`);
-		
-		// 		const signature = new Uint8Array(await crypto.subtle.sign(PEER_ALGORITHM, self_key, contents));
-		
-		// 		return {
-		// 			subscriber,
-		// 			expiration,
-		// 			signature
-		// 		};
-		// 	})()
-		// ];
-
-		// await push(self, encoder.encode('Test Message'), true);
-
+		const public_key_bytes = new Uint8Array(await crypto.subtle.exportKey('raw', await crypto.subtle.importKey('jwk', public_key, {
+			name: 'ECDSA',
+			namedCurve: 'P-256'
+		}, true, [])));
+		await wasm_bindgen.self_push_info(public_key_bytes, new Uint8Array(auth), endpoint);
 		return true;
 	},
 
 	// Making friends:
 	async get_self_intro(valid = 12) {
-		const self = await get_self();
-		const self_key = await crypto.subtle.importKey('jwk', self.private_key, {
-			name: 'ECDSA',
-			namedCurve: 'P-256'
-		}, false, ['sign']);
-		const self_public_key = await crypto.subtle.importKey('jwk', self.public_key, {
-			name: 'ECDSA',
-			namedCurve: 'P-256'
-		}, true, ['verify']);
-
-		const push_dh = await crypto.subtle.importKey(
-			'jwk',
-			self.push_info.public_key,
-			{
-				name: 'ECDH',
-				namedCurve: 'P-256'
-			},
-			true,
-			[]
-		);
-
-		// Create the required JWTs to last at least valid:
-		const jwts = [];
-		let valid_i = valid;
-		while (valid_i > 0) {
-			const duration = (valid_i > 12) ? 12 : valid_i;
-			jwts.push(
-				await signaling_encoder.sub.common_jwt(
-					self_key,
-					self.push_info.endpoint,
-					duration
-				)
-			);
-			valid_i -= duration;
-		}
-		const data_buf = await signaling_encoder.build(self_key, [
-			await signaling_encoder.sub.introduction(self_public_key),
-			await signaling_encoder.sub.push_info(
-				self.push_info.auth,
-				push_dh,
-				self.push_info.endpoint
-			),
-			...jwts
-		]);
-		const data = (new TextDecoder()).decode(data_buf);
-		console.log('Created a self introduction that is valid for 12 hours with a size of: ', data_buf.byteLength);
-		const valid_until_stamp = Date.now() + (valid * 60 * 60 * 1000);
 		return {
-			valid_until: new Date(valid_until_stamp),
-			intro: data
+			valid_until: new Date(Date.now() + 12 * 60 * 60 * 1000), // TODO: Fix valid duration.
+			intro: await wasm_bindgen.get_signaling_intro(valid)
 		};
 	},
 	async apply_introduction(input) {
 		const white_removed = input.replace(/[\s]/g, '');
-		// const data = base64ToBuffer(white_removed);
-		// const message = signaling_decoder.decode_message(data.buffer);
-		const message = signaling_decoder.decode_message(white_removed);
-		await handle_message(message);
+		await wasm_bindgen.handle_signaling_message(white_removed);
 	},
 
 	// Registering for peer notifications:

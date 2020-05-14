@@ -1,5 +1,7 @@
 // TODO: Switch to a module service worker when available.
 importScripts(
+	'./sw/wasm-runtime.js',
+	'./web3/pkg/web3.js',
 	'./extern/pako/dist/pako.min.js',
 
 	'./sw/common.js',
@@ -25,7 +27,9 @@ importScripts(
 
 self.oninstall = event => {
 	event.waitUntil((async () => {
-		console.log('sw installing');
+		await wasm_bindgen('./web3/pkg/web3_bg.wasm');
+		await wasm_bindgen.init();
+		console.log("Service Worker installed");
 		// TODO: Split DB upgrade between install (addition changes) and activate (cleanup changes)
 		// const db = await get_database(DB_VERSION);
 		// db.transaction('')
@@ -36,26 +40,7 @@ self.oninstall = event => {
 };
 self.onactivate = event => {
 	event.waitUntil((async () => {
-		console.log('sw activating');
 		await self.clients.claim();
-	})());
-};
-
-self.onpushsubscriptionchange = event => {
-	event.waitUntil((async () => {
-		console.warn(event);
-		// TODO: Invalidate the info_sent field on all of the peers + Apply new subscription info to self
-		await NEVER;
-	})());
-};
-
-self.onpush = event => {
-	// Actual message handling:
-	event.waitUntil((async () => {
-		console.log('Got message!');
-		if (event.data) {
-			const message = signaling_decoder.decode_message(event.data.text());
-			await handle_message(message);
-		}
+		console.log('Service Worker Activiated');
 	})());
 };
