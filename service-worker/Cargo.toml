@@ -1,5 +1,5 @@
 [package]
-name = "web3"
+name = "service-worker"
 version = "0.1.0"
 authors = ["Evan Brass <evan-brass@protonmail.com>"]
 edition = "2018"
