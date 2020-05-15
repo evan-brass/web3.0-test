@@ -1,22 +1,22 @@
 import service_worker_api from './rpc-client.mjs';
 
-import mount from './extern/js-min/src/templating/mount.mjs';
-import html from './extern/js-min/src/templating/html.mjs';
-import css from './extern/js-min/src/templating/css.mjs';
-import on from './extern/js-min/src/templating/users/on.mjs';
-import ref from './extern/js-min/src/templating/users/ref.mjs';
-import NodeArray from './extern/js-min/src/templating/users/node-array.mjs';
+import mount from '../../extern/js-min/src/templating/mount.mjs';
+import html from '../../extern/js-min/src/templating/html.mjs';
+import css from '../../extern/js-min/src/templating/css.mjs';
+import on from '../../extern/js-min/src/templating/users/on.mjs';
+import ref from '../../extern/js-min/src/templating/users/ref.mjs';
+import NodeArray from '../../extern/js-min/src/templating/users/node-array.mjs';
 
-import Base from './extern/js-min/src/custom-elements/base.mjs';
+import Base from '../../extern/js-min/src/custom-elements/base.mjs';
 
-import wrap_signal from './extern/js-min/src/cancellation/wrap-signal.mjs';
+import wrap_signal from '../../extern/js-min/src/cancellation/wrap-signal.mjs';
 
-import NEVER from './extern/js-min/src/lib/never.mjs';
-import delay from './extern/js-min/src/lib/delay.mjs';
+import NEVER from '../../extern/js-min/src/lib/never.mjs';
+import delay from '../../extern/js-min/src/lib/delay.mjs';
 
 import initialized from './init.mjs';
 
-import differed from './extern/js-min/src/lib/differed.mjs';
+import differed from '../../extern/js-min/src/lib/differed.mjs';
 
 import create_spinner from './ui/spinner.mjs';
 

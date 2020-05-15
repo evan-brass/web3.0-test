@@ -1,4 +1,4 @@
-import User from '../extern/js-min/src/templating/users/user.mjs';
+import User from '../../../extern/js-min/src/templating/users/user.mjs';
 
 export default function once_button(title) {
 	let res, rej;

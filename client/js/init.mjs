@@ -1,14 +1,14 @@
 import service_worker_api from './rpc-client.mjs';
 
-import mount from './extern/js-min/src/templating/mount.mjs';
-import html from './extern/js-min/src/templating/html.mjs';
-import on from './extern/js-min/src/templating/users/on.mjs';
-import css from './extern/js-min/src/templating/css.mjs';
+import mount from '../../extern/js-min/src/templating/mount.mjs';
+import html from '../../extern/js-min/src/templating/html.mjs';
+import on from '../../extern/js-min/src/templating/users/on.mjs';
+import css from '../../extern/js-min/src/templating/css.mjs';
 
-import differed from './extern/js-min/src/lib/differed.mjs';
-import wrapSignal from './extern/js-min/src/cancellation/wrap-signal.mjs';
+import differed from '../../extern/js-min/src/lib/differed.mjs';
+import wrapSignal from '../../extern/js-min/src/cancellation/wrap-signal.mjs';
 
-import timeout from './extern/js-min/src/lib/timeout.mjs';
+import timeout from '../../extern/js-min/src/lib/timeout.mjs';
 
 export default (async () => {
 	const init_steps = [

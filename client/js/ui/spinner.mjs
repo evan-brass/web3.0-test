@@ -1,9 +1,9 @@
-import ref from '../extern/js-min/src/templating/users/ref.mjs';
-import User from '../extern/js-min/src/templating/users/user.mjs';
-import html from '../extern/js-min/src/templating/html.mjs';
-import css from '../extern/js-min/src/templating/css.mjs';
+import ref from '../../../extern/js-min/src/templating/users/ref.mjs';
+import User from '../../../extern/js-min/src/templating/users/user.mjs';
+import html from '../../../extern/js-min/src/templating/html.mjs';
+import css from '../../../extern/js-min/src/templating/css.mjs';
 
-import LiveData from '../extern/js-min/src/reactivity/live-data.mjs';
+import LiveData from '../../../extern/js-min/src/reactivity/live-data.mjs';
 
 import spinner_css from './spinner.css.mjs';
 

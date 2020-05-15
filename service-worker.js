@@ -1,27 +1,27 @@
 // TODO: Switch to a module service worker when available.
 importScripts(
-	'./sw/wasm-runtime.js',
-	'./web3/pkg/web3.js',
+	'./service-worker/js/wasm-runtime.js',
+	'./wasm/debug/service-worker.js',
 
-	'./sw/common.js',
-	'./sw/database.js',
+	'./service-worker/js/common.js',
+	'./service-worker/js/database.js',
 
-	// './sw/webpush.js',
+	// './service-worker/js/webpush.js',
 
-	'./sw/connection-port-handler.js',
+	'./service-worker/js/connection-port-handler.js',
 
-	'./sw/push.js',
-	'./sw/rpc-server.js',
+	'./service-worker/js/push.js',
+	'./service-worker/js/rpc-server.js',
 
-	'./sw/crypto-parameters.js',
-	'./sw/peer-meta.js',
+	'./service-worker/js/crypto-parameters.js',
+	'./service-worker/js/peer-meta.js',
 
-	'./sw/handle-message.js'
+	'./service-worker/js/handle-message.js'
 );
 
 self.oninstall = event => {
 	event.waitUntil((async () => {
-		await wasm_bindgen('./web3/pkg/web3_bg.wasm');
+		await wasm_bindgen('./wasm/debug/service-worker_bg.wasm');
 		await wasm_bindgen.init();
 		console.log("Service Worker installed");
 		// TODO: Split DB upgrade between install (addition changes) and activate (cleanup changes)

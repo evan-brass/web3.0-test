@@ -1,4 +1,4 @@
-import css from './extern/js-min/src/templating/css.mjs';
+import css from '../../extern/js-min/src/templating/css.mjs';
 
 // TODO: Switch to importing main.css from another module.
 

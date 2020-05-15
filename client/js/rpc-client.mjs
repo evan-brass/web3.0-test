@@ -1,4 +1,4 @@
-import differed from './extern/js-min/src/lib/differed.mjs';
+import differed from '../../extern/js-min/src/lib/differed.mjs';
 
 // Signatures for the service worker API:
 const service_worker_api = {
