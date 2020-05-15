@@ -10,8 +10,15 @@ import wrapSignal from '../../extern/js-min/src/cancellation/wrap-signal.mjs';
 
 import timeout from '../../extern/js-min/src/lib/timeout.mjs';
 
+import init from '../../wasm/debug/client.js';
+
 export default (async () => {
 	const init_steps = [
+		[ 'Initialize The Client WASM Module', async () => {
+			await init();
+
+			return [];
+		}],
 		[ 'Fetch / Register Service Worker', async () => {
 			let registration = await navigator.serviceWorker.getRegistration();
 			if (!registration) {

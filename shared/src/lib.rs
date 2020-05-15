@@ -1,7 +1,13 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+use serde::{Serialize, Deserialize};
+
+pub mod crypto;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ServiceWorkerMessage {
+	
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ClientMessage {
+
 }

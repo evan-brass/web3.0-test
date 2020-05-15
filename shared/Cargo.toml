@@ -5,3 +5,8 @@ authors = ["Evan Brass <evan-brass@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.12"
+serde = { version = "1.0", features = ["derive"] }
+js-sys = { version = "0.3" }
+serde-big-array = "0.3"

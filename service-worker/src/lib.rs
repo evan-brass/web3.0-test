@@ -10,9 +10,10 @@ use std::{
 	cell::RefCell
 };
 
+use shared::*;
+
 mod base;
 mod signaling;
-mod crypto;
 mod persist;
 mod peer;
 use persist::Persist;
@@ -135,18 +136,21 @@ pub async fn handle_signaling_message(push: String) {
 	} else {
 		println!("Received a message that wasn't signed properly. 🤷‍♂️");
 	}
-
-	// uncompressed.into_boxed_slice()
 }
 
-// TODO: receive messages from the client already encoded instead of using JS while message passing
-// #[wasm_bindgen]
-// extern "C" {
-// 	#[wasm_bindgen(js_name = send_client_message)]
-// 	fn send_client_message(client_id: usize, message: Vec<u8>);
-// }
-
-// #[wasm_bindgen]
-// pub async fn handle_client_message(client_id: usize, message: Vec<u8>) {
-
-// }
+// Handle array buffer messages from the client (They are likely coming from the wasm module in the client):
+#[wasm_bindgen]
+extern "C" {
+	#[wasm_bindgen(js_name = send_client_message)]
+	fn send_client_message(client_id: usize, message: Vec<u8>);
+}
+#[wasm_bindgen]
+pub async fn handle_client_message(client_id: usize, message: Vec<u8>) {
+	if let Ok(message) = postcard::from_bytes::<ClientMessage>(&message) {
+		match message {
+			_ => println!("SW Received Message from client {}: {:?}", client_id, message)
+		}
+	} else {
+		eprintln!("Received a bad message");
+	}
+}

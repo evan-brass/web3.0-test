@@ -80,37 +80,37 @@ const service_worker_api = {
 };
 
 // Map incoming calls from the port onto the local definition:
-self.addEventListener('message', e => {
-	const send_port = e.source;
-	const run = (async _ => {
-		const data = e.data;
-		if (data.method) {
-			const { params, id } = data;
-			const method_name = data.method;
-			if (!(service_worker_api[method_name] instanceof Function)) {
-				const error = new Error(method_name + " isn't a function.")
-				send_port.postMessage({ id, error });
-			}
-			const method = service_worker_api[method_name];
-			if (params.length < method.length) {
-				console.warn(new Error(
-					'Running local RPC even though fewer parameters were supplied than the function expects.'
-				));
-			}
-			const transfer_list = [];
-			to_transfer = transfer_list;
-			try {
-				let result = method(...params);
-				if (typeof result == 'object' && result.then) {
-					result = await result;
-				}
-				send_port.postMessage({ id, result }, transfer_list);
-			} catch (error) {
-				console.error(error);
-				send_port.postMessage({ id, error }, transfer_list);
-				throw error;
-			}
-		}
-	})();
-	if (e.waitUntil) e.waitUntil(run);
-});
+// self.addEventListener('message', e => {
+// 	const send_port = e.source;
+// 	const run = (async _ => {
+// 		const data = e.data;
+// 		if (data.method) {
+// 			const { params, id } = data;
+// 			const method_name = data.method;
+// 			if (!(service_worker_api[method_name] instanceof Function)) {
+// 				const error = new Error(method_name + " isn't a function.")
+// 				send_port.postMessage({ id, error });
+// 			}
+// 			const method = service_worker_api[method_name];
+// 			if (params.length < method.length) {
+// 				console.warn(new Error(
+// 					'Running local RPC even though fewer parameters were supplied than the function expects.'
+// 				));
+// 			}
+// 			const transfer_list = [];
+// 			to_transfer = transfer_list;
+// 			try {
+// 				let result = method(...params);
+// 				if (typeof result == 'object' && result.then) {
+// 					result = await result;
+// 				}
+// 				send_port.postMessage({ id, result }, transfer_list);
+// 			} catch (error) {
+// 				console.error(error);
+// 				send_port.postMessage({ id, error }, transfer_list);
+// 				throw error;
+// 			}
+// 		}
+// 	})();
+// 	if (e.waitUntil) e.waitUntil(run);
+// });

@@ -298,11 +298,23 @@ dependencies = [
  "postcard",
  "serde",
  "serde-big-array",
+ "shared",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "wee_alloc",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "serde",
+ "serde-big-array",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
