@@ -2,7 +2,7 @@ use wasm_bindgen::prelude::*;
 use js_sys::{Promise, Uint8Array};
 use serde::{Serialize, de::DeserializeOwned};
 use wasm_bindgen_futures::JsFuture;
-use bincode;
+use postcard;
 
 #[wasm_bindgen]
 extern "C" {
@@ -31,7 +31,7 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 
 		self.inner = if !result.is_undefined() {
 			let encoded = Uint8Array::from(result).to_vec();
-			let temp: T = bincode::deserialize(encoded.as_slice()).expect("Deserialization failure.");
+			let temp = postcard::from_bytes::<T>(encoded.as_slice()).expect("Deserialization failure.");
 			Some(temp)
 		} else { 
 			Some(default_func())
@@ -41,7 +41,7 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 	pub async fn save(&self) {
 		// Save the changes to the indexedDB
 		if let Some(inner) = &self.inner {
-			let encoded = bincode::serialize(inner).expect("Serialization Failure.");
+			let encoded = postcard::to_stdvec(inner).expect("Serialization Failure.");
 			JsFuture::from(persist_set(self.id, encoded.as_slice())).await.expect("Failure inside persist_set!");
 		}
 	}

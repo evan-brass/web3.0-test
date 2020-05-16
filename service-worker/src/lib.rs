@@ -1,7 +1,7 @@
-#![feature(set_stdio, async_closure)]
-
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures;
 use base64;
+use anyhow::{anyhow};
 // use libflate::zlib;
 
 use std::{
@@ -12,11 +12,13 @@ use std::{
 
 use shared::*;
 
-mod base;
 mod signaling;
 mod persist;
 mod peer;
+mod comms;
+
 use persist::Persist;
+
 
 thread_local!(
 	static SELF_PERSIST: Rc<RefCell<Persist<Option<peer::SelfPeer>>>> = Rc::new(RefCell::new(Persist::new(0)));
@@ -30,6 +32,37 @@ pub async fn init() {
 	// Initialize our persistent state (Fetch it from IndexedDB):
 	SELF_PERSIST.with(|rc| rc.clone()).borrow_mut().init(|| None).await;
 	PEER_PERSIST.with(|rc| rc.clone()).borrow_mut().init(|| Vec::new()).await;
+
+	// wasm_bindgen_futures::spawn_local(handle_message_loop());
+}
+
+async fn handle_message(client_id: String, message: ClientMessage) -> anyhow::Result<()> {
+	match message {
+		ClientMessage::Ping(s) => {
+			println!("Received Ping: {}", s);
+			let sent = comms::send(&client_id, ServiceWorkerMessage::Pong(s)).await?;
+			if sent {
+				Ok(())
+			} else {
+				Err(anyhow!("Client no longer exists, so pong wasn't sent."))
+			}
+		},
+		_ => unimplemented!()
+	}
+}
+
+#[wasm_bindgen]
+pub async fn start_message_loop() {
+	println!("Starting the main loop");
+	loop {
+		let message = comms::fetch().await;
+		match message {
+			Ok((id, message)) => if let Err(reason) = handle_message(id, message).await {
+				eprintln!("Failure while handling message: {:?}", reason);
+			},
+			Err(reason) => eprintln!("Encountered an error while fetching the next message: {:?}", reason)
+		}
+	}
 }
 
 #[wasm_bindgen]
@@ -135,22 +168,5 @@ pub async fn handle_signaling_message(push: String) {
 		}).await;
 	} else {
 		println!("Received a message that wasn't signed properly. 🤷‍♂️");
-	}
-}
-
-// Handle array buffer messages from the client (They are likely coming from the wasm module in the client):
-#[wasm_bindgen]
-extern "C" {
-	#[wasm_bindgen(js_name = send_client_message)]
-	fn send_client_message(client_id: usize, message: Vec<u8>);
-}
-#[wasm_bindgen]
-pub async fn handle_client_message(client_id: usize, message: Vec<u8>) {
-	if let Ok(message) = postcard::from_bytes::<ClientMessage>(&message) {
-		match message {
-			_ => println!("SW Received Message from client {}: {:?}", client_id, message)
-		}
-	} else {
-		eprintln!("Received a bad message");
 	}
 }

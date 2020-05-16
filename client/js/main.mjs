@@ -24,6 +24,8 @@ import PeerItem from './ui/peer-item.mjs';
 
 import main_css from './main.css.mjs';
 
+import {} from '../../wasm/debug/client.js';
+
 class Web3Friends extends Base {
 	async run(signal) {
 		const wrap = wrap_signal(signal);

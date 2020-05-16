@@ -8,3 +8,11 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+shared = { path = "../shared" }
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+serde = { version = "1.0", features = ["derive"] }
+wasm-bindgen-futures = "0.4.12"
+js-sys = { version = "0.3" }
+web-sys = { version = "0.3", features = ["SubtleCrypto", "CryptoKey"] }
+postcard = { version = "0.5", features = ["use-std"] }
+anyhow = "1.0"

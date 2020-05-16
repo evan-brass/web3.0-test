@@ -10,7 +10,18 @@ import wrapSignal from '../../extern/js-min/src/cancellation/wrap-signal.mjs';
 
 import timeout from '../../extern/js-min/src/lib/timeout.mjs';
 
-import init from '../../wasm/debug/client.js';
+import init, { ping_pong } from '../../wasm/debug/client.js';
+
+const sw_queue = {
+	unread: [],
+	waiting: false
+};
+navigator.serviceWorker.onmessage = e => {
+	sw_queue.unread.push(e);
+	if (sw_queue.waiting) {
+		sw_queue.waiting();
+	}
+};
 
 export default (async () => {
 	const init_steps = [
@@ -25,6 +36,11 @@ export default (async () => {
 				registration = await navigator.serviceWorker.register('./service-worker.js');
 			}
 			return [registration];
+		}],
+		[ 'Run Ping/Pong Test', async (_registration) => {
+			await ping_pong();
+
+			return [_registration];
 		}],
 		[ 'Fetch / Create Self', async (_registration) => {
 			let self = await service_worker_api.get_self();
