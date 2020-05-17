@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use url::Url;
 use base64;
 
-use super::signaling;
+use shared::signaling;
 use super::crypto;
 
 #[derive(Serialize, Deserialize)]

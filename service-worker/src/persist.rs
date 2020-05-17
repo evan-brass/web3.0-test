@@ -4,6 +4,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use wasm_bindgen_futures::JsFuture;
 use postcard;
 
+use std::future::Future;
+
 #[wasm_bindgen]
 extern "C" {
 	#[wasm_bindgen(js_name = persist_get)]
@@ -25,17 +27,26 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 			inner: None
 		}
 	}
-	// Initialize the persist by fetching the previous value from IndexedDB
-	pub async fn init<F: FnOnce() -> T>(&mut self, default_func: F) {
+	async fn fetch(&self) -> Option<T> {
 		let result = JsFuture::from(persist_get(self.id)).await.expect("Failure inside persist_get!");
 
-		self.inner = if !result.is_undefined() {
+		if !result.is_undefined() {
 			let encoded = Uint8Array::from(result).to_vec();
 			let temp = postcard::from_bytes::<T>(encoded.as_slice()).expect("Deserialization failure.");
 			Some(temp)
 		} else { 
-			Some(default_func())
-		};
+			None
+		}
+	}
+	// Initialize the persist by fetching the previous value from IndexedDB
+	pub async fn init<F: FnOnce() -> T>(&mut self, default_func: F) {
+		self.inner = Some(self.fetch().await.unwrap_or_else(default_func));
+	}
+	pub async fn init_async<F: FnOnce() -> U, U: Future<Output = T>>(&mut self, default_func: F) {
+		self.inner = Some(match self.fetch().await {
+			Some(v) => v,
+			None => default_func().await
+		});
 	}
 	// Save the Persist to IndexedDB
 	pub async fn save(&self) {
@@ -74,10 +85,10 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 			_ => panic!("Persist hasn't been initialized yet!")
 		}
 	}
-	pub fn inner_mut(&mut self) -> &mut T{
-		match &mut self.inner {
-			Some(ret) => ret,
-			_ => panic!("Persist hasn't been initialized yet!")
-		}
-	}
+	// pub fn inner_mut(&mut self) -> &mut T{
+	// 	match &mut self.inner {
+	// 		Some(ret) => ret,
+	// 		_ => panic!("Persist hasn't been initialized yet!")
+	// 	}
+	// }
 }

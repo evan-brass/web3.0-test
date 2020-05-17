@@ -40,6 +40,11 @@ impl From<Box<[u8]>> for ECDSAPublicKey {
 		}
 	}
 }
+impl From<ECDSAPublicKey> for Uint8Array {
+	fn from(pk: ECDSAPublicKey) -> Self {
+		Uint8Array::from(&pk.data[..])
+	}
+}
 impl Debug for ECDSAPublicKey {
 	fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
 		self.data[..].fmt(formatter)

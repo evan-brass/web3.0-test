@@ -75,6 +75,21 @@ async function persist_set(id, data) {
 	db.close();
 }
 
+// Create a keypair for self:
+class SelfKeyPair {
+	constructor(public_key, private_key) {
+		this.public_key = public_key;
+		this.private_key = private_key;
+	}
+}
+async function generate_self_pair() {
+	const keypair = await crypto.subtle.generateKey(ecdsa_params, true, ['sign', 'verify']);
+	return new SelfKeyPair(
+		new Uint8Array(await crypto.subtle.exportKey('raw', keypair.publicKey)), 
+		JSON.stringify(await crypto.subtle.exportKey('jwk', keypair.privateKey))
+	);
+}
+
 // Client <-> Service Worker communication:
 const client_messages = {
 	unread: [],

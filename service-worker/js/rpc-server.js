@@ -2,25 +2,6 @@
 
 let to_transfer;
 const service_worker_api = {
-	// Self:
-	async get_self() {
-		const output = wasm_bindgen.get_self();
-		if (output !== undefined) {
-			output.public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('raw', Uint8Array.from(output.public_key.data), ecdsa_params, true, ['verify']))
-			output.private_key = JSON.parse(output.private_key.jwk);
-
-			if ('push_info' in output) {
-				output.push_info.public_key = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('raw', Uint8Array.from(output.push_info.public_key.data), ecdsa_params, true, []))
-			}
-		}
-		return output;
-	},
-	async create_self(public_key, private_key) {
-		const public_key_bytes = new Uint8Array(await crypto.subtle.exportKey('raw', await crypto.subtle.importKey('jwk', public_key, ecdsa_params, true, [])));
-		await wasm_bindgen.create_self(public_key_bytes, JSON.stringify(private_key));
-
-		return true;
-	},
 	async push_info_self(public_key, auth, endpoint) {
 		const public_key_bytes = new Uint8Array(await crypto.subtle.exportKey('raw', await crypto.subtle.importKey('jwk', public_key, {
 			name: 'ECDSA',
