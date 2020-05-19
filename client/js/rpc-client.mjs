@@ -2,11 +2,6 @@ import differed from '../../extern/js-min/src/lib/differed.mjs';
 
 // Signatures for the service worker API:
 const service_worker_api = {
-	get_self() {},
-	create_self(public_key, private_key) {},
-	push_info_self(public_key, auth, endpoint) {},
-
-	get_self_intro(valid = 12) {},
 	apply_introduction(input) {},
 
 	get_peer_list_port() {},

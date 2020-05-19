@@ -2,7 +2,7 @@ import service_worker_api from './rpc-client.mjs';
 
 import mount from '../../extern/js-min/src/templating/mount.mjs';
 import html from '../../extern/js-min/src/templating/html.mjs';
-import css from '../../extern/js-min/src/templating/css.mjs';
+// import css from '../../extern/js-min/src/templating/css.mjs';
 import on from '../../extern/js-min/src/templating/users/on.mjs';
 import ref from '../../extern/js-min/src/templating/users/ref.mjs';
 import NodeArray from '../../extern/js-min/src/templating/users/node-array.mjs';
@@ -12,7 +12,7 @@ import Base from '../../extern/js-min/src/custom-elements/base.mjs';
 import wrap_signal from '../../extern/js-min/src/cancellation/wrap-signal.mjs';
 
 import NEVER from '../../extern/js-min/src/lib/never.mjs';
-import delay from '../../extern/js-min/src/lib/delay.mjs';
+// import delay from '../../extern/js-min/src/lib/delay.mjs';
 
 import initialized from './init.mjs';
 
@@ -24,7 +24,7 @@ import PeerItem from './ui/peer-item.mjs';
 
 import main_css from './main.css.mjs';
 
-import {} from '../../wasm/debug/client.js';
+import { get_self_introduction } from '../../wasm/debug/client.js';
 
 class Web3Friends extends Base {
 	async run(signal) {
@@ -53,12 +53,11 @@ class Web3Friends extends Base {
 							yield spinner;
 							try {
 								spinner.run();
-								const { valid_until, intro } = await service_worker_api.get_self_intro();
+								const intro = await get_self_introduction();
 								let intro_out = intro.match(/.{1,30}/g).join('\n');
 								// let intro_out = intro;
 								yield html`
 									<pre style="margin-inline: auto; width: fit-content; inline-size: fit-content;">${intro_out}</pre>
-									This token is valid until <date >${valid_until.toLocaleDateString()} ${valid_until.toLocaleTimeString()}</date><br>
 									<button ${on('click', generate_clicked.res)}>Regenerate</button>
 								`;
 							} catch (e) {

@@ -1,10 +1,16 @@
-use std::fmt::Debug;
+use std::{
+	fmt::Debug,
+	convert::TryFrom,
+	error::Error
+};
 
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use js_sys::{Promise, Uint8Array};
 use wasm_bindgen_futures::JsFuture;
 use serde_big_array::big_array;
+use base64;
+use anyhow::Context;
 
 big_array! {
     BigArray;
@@ -43,6 +49,25 @@ impl From<Box<[u8]>> for ECDSAPublicKey {
 impl From<ECDSAPublicKey> for Uint8Array {
 	fn from(pk: ECDSAPublicKey) -> Self {
 		Uint8Array::from(&pk.data[..])
+	}
+}
+// The following two implementations are so that we can turn an ECDSAPublicKey into a string that can be used as a user visible id and can be passed around the JS side more easily than a Uint8Array:
+impl From<ECDSAPublicKey> for String {
+	fn from(pk: ECDSAPublicKey) -> Self {
+		base64::encode_config(&pk.data[..], base64::URL_SAFE_NO_PAD)
+	}
+}
+impl TryFrom<String> for ECDSAPublicKey {
+	type Error = Box<dyn Error>;
+
+	fn try_from(input: String) -> Result<Self, Self::Error> {
+		let result = base64::decode_config(input, base64::URL_SAFE_NO_PAD).context("")?;
+		let mut data = [0; 65];
+		data.copy_from_slice(&result);
+
+		Ok(ECDSAPublicKey {
+			data
+		})
 	}
 }
 impl Debug for ECDSAPublicKey {

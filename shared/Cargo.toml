@@ -13,3 +13,5 @@ serde-big-array = "0.3"
 wee_alloc = "0.4"
 console_error_panic_hook = "0.1"
 postcard = { version = "0.5", features = ["use-std"] }
+base64 = "0.12"
+anyhow = "1.0"

@@ -43,7 +43,7 @@ function get_wasm_db() {
 		const db = target.result;
 		if (oldVersion == 0) {
 			// This is where we'll store our local keys: CryptoKeyPair's for the application server that we use with our subscription
-			const peers_store = db.createObjectStore('items');
+			db.createObjectStore('items');
 		}
 	});
 	return new Promise((resolve, reject) => {
@@ -123,36 +123,6 @@ async function fetch_client_message() {
 		}
 		if (data instanceof Uint8Array) {
 			return new MessageEntry(source.id, data);
-		} else {
-			// TODO: When all the js-message passing is cleared out, remove this branch:
-			// Handle this non wasm message:
-			if (data.method) {
-				const { params, id } = data;
-				const method_name = data.method;
-				if (!(service_worker_api[method_name] instanceof Function)) {
-					const error = new Error(method_name + " isn't a function.")
-					source.postMessage({ id, error });
-				}
-				const method = service_worker_api[method_name];
-				if (params.length < method.length) {
-					console.warn(new Error(
-						'Running local RPC even though fewer parameters were supplied than the function expects.'
-					));
-				}
-				const transfer_list = [];
-				to_transfer = transfer_list;
-				try {
-					let result = method(...params);
-					if (typeof result == 'object' && result.then) {
-						result = await result;
-					}
-					source.postMessage({ id, result }, transfer_list);
-				} catch (error) {
-					console.error(error);
-					source.postMessage({ id, error }, transfer_list);
-					// throw error;
-				}
-			}
 		}
 	}
 }

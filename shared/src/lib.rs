@@ -8,14 +8,15 @@ pub mod signaling;
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ServiceWorkerMessage {
-	Pong(String),
-	SelfPublicKey(crypto::ECDSAPublicKey)
+	SelfPublicKey(crypto::ECDSAPublicKey),
+	SelfIntroduction(String),
 }
 
 #[non_exhaustive]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
-	Ping(String),
 	SelfPublicKey,
-	UpdateSelfPushInfo(signaling::PushInfo)
+	UpdateSelfPushInfo(signaling::PushInfo),
+	GetSelfIntroduction,
+	ApplyIntroduction(String)
 }
