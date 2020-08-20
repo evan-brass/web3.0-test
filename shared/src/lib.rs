@@ -1,19 +1,14 @@
 #![feature(set_stdio)]
-use serde::{Serialize, Deserialize};
+use p256;
 
-pub mod crypto;
 pub mod base;
 pub mod signaling;
 
-#[non_exhaustive]
-#[derive(Serialize, Deserialize, Debug)]
 pub enum ServiceWorkerMessage {
-	SelfPublicKey(crypto::ECDSAPublicKey),
+	SelfPublicKey(p256::PublicKey),
 	SelfIntroduction(String),
 }
 
-#[non_exhaustive]
-#[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
 	SelfPublicKey,
 	UpdateSelfPushInfo(signaling::PushInfo),

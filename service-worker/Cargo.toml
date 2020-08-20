@@ -21,3 +21,5 @@ postcard = { version = "0.5", features = ["use-std"] }
 url = "2.1"
 serde-big-array = "0.3"
 anyhow = "1.0"
+p256 = { version = "0.4.1", features = ["ecdh", "ecdsa", "ecdsa-core"] }
+rand = "0.7.3"

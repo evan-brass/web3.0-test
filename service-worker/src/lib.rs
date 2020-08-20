@@ -1,7 +1,7 @@
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use base64;
-use anyhow::{anyhow};
+use anyhow::anyhow;
 use js_sys::Promise;
 // use libflate::zlib;
 
@@ -44,7 +44,7 @@ async fn init_self() -> peer::SelfPeer {
 	// println!("{:?}", key_pair);
 	peer::SelfPeer {
 		public_key: crypto::ECDSAPublicKey::from(key_pair.public_key()),
-		private_key: crypto::ECDSAPrivateKey::from(key_pair.private_key()),
+		secret_key: crypto::ECDSAPrivateKey::from(key_pair.private_key()),
 		push_info: None
 	}
 }
@@ -107,7 +107,7 @@ async fn handle_message(client_id: String, message: ClientMessage) -> anyhow::Re
 
 			// println!("Message before signature + pk: {:?}", message);
 
-			let message = message.prepare(&self_peer.private_key, &self_peer.public_key).await.unwrap();
+			let message = message.prepare(&self_peer.secret_key, &self_peer.public_key).await.unwrap();
 
 			let encoded = postcard::to_stdvec(&message).unwrap();
 			let result = base64::encode_config(encoded, base64::URL_SAFE_NO_PAD);

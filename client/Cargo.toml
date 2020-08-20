@@ -16,4 +16,4 @@ js-sys = { version = "0.3" }
 web-sys = { version = "0.3", features = ["SubtleCrypto", "CryptoKey"] }
 postcard = { version = "0.5", features = ["use-std"] }
 anyhow = "1.0"
-yew = "0.16"
+yew = "0.17"
