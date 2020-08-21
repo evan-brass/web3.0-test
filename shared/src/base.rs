@@ -20,6 +20,7 @@ pub fn init() {
 	console_error_panic_hook::set_once();
 	std::io::set_panic(Some(Box::new(StdErr::new())));
 	std::io::set_print(Some(Box::new(StdOut::new())));
+	println!("std error and std out are now initialized.");
 }
 
 struct StdOut{

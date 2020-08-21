@@ -23,15 +23,15 @@ impl From<p256::PublicKey> for Peer {
 	}
 }
 impl Peer {
-	fn verify_auth(&self, auth: signaling::PushAuth) -> bool {
-		if let Some(push_info) = &self.info {
+	fn verify_auth(public_key: &p256::PublicKey, info: &Option<signaling::PushInfo>, auth: &signaling::PushAuth) -> bool {
+		if let Some(push_info) = info {
 			let audience = Url::parse(&push_info.endpoint).unwrap().origin().unicode_serialization();
 			let body = format!("{{\"aud\":\"{}\",\"exp\":{},\"sub\":\"{}\"}}", audience, auth.expiration, auth.subscriber);
 			let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 
-			let verifier = Verifier::new(&self.public_key).unwrap();
+			let verifier = Verifier::new(public_key).unwrap();
 			verifier.verify(buffer.as_bytes(), &auth.signature).is_ok()
 		} else {
 			false
@@ -45,10 +45,10 @@ impl Peer {
 					println!("Push info changed for this peer");
 
 					// Remove any auths that don't match the new info
-					let auths = self.authorizations;
+					let ref mut auths = self.authorizations;
 					let mut i = 0;
 					while i != auths.len() {
-						if !self.verify_auth(auths[i]) {
+						if !Self::verify_auth(&self.public_key, &self.info, &auths[i]) {
 							let val = auths.remove(i);
 						} else {
 							i += 1;
@@ -58,10 +58,10 @@ impl Peer {
 				for (index, sig) in message.auth_signatures.iter().enumerate() {
 					let auth = signaling::PushAuth {
 						expiration: message.auth_expiration + index as u32 * (12 * 60),
-						subscriber: message.auth_subscriber.unwrap_or_else(|| String::from("mailto:no-reply@example.com")),
+						subscriber: message.auth_subscriber.clone().unwrap_or_else(|| String::from("mailto:no-reply@example.com")),
 						signature: sig.clone()
 					};
-					if self.verify_auth(auth) {
+					if Self::verify_auth(&self.public_key, &self.info, &auth) {
 						self.authorizations.push(auth);
 					}
 				}
