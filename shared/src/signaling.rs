@@ -10,13 +10,14 @@ use flate2::{
 };
 use anyhow::{Context, anyhow};
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PushInfo {
 	pub public_key: p256::PublicKey,
 	pub auth: [u8; 16],
 	pub endpoint: String
 }
 
+#[derive(Clone)]
 pub struct PushAuth {
 	pub expiration: u32,
 	pub subscriber: String,
@@ -305,7 +306,34 @@ mod test_encoding {
 	}
 	
 	#[test]
-	fn encode_intro() {
+	fn encode_info() {
+		let t = PushMessage {
+			info: Some(PushInfo {
+				public_key: p256::PublicKey::from_bytes(&vec![
+					4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
+				]).expect("Invalid Public Key??"),
+				auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
+				endpoint: String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w")
+			}),
+			auth_expiration: 0,
+			auth_subscriber: None,
+			auth_signatures: Vec::new(),
+			sdp: None,
+			ice: Vec::new()
+		};
+		let encoded: Box<[u8]> = t.try_into().expect("Encoding Failed");
+	
+		// Verify the header:
+		assert_eq!(encoded[0], 128);
+		// let mut pk: [u8; 33] = [0; 33];
+		// pk[0] = 0x03;
+		// pk[1..].copy_from_slice(&encoded[1..33]);
+		// assert_eq!(p256::PublicKey::from_bytes(&pk[0..]).is_some(), true);
+		println!("Encoded Length: {} {:?}", encoded.len(), encoded);
+	}
+
+	#[test]
+	fn encode_full() {
 		let t = PushMessage {
 			info: Some(PushInfo {
 				public_key: p256::PublicKey::from_bytes(&vec![

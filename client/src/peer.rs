@@ -1,16 +1,23 @@
+use wasm_bindgen::prelude::*;
 use url::Url;
 use base64;
-use p256::ecdsa::{Signer, Verifier, signature::Verifier as _, signature::RandomizedSigner};
+use p256::{
+	elliptic_curve::Generate,
+	ecdsa::{ Signer, Verifier, signature::Verifier as _, signature::RandomizedSigner }
+};
 use std::convert::TryFrom;
 use rand::{ CryptoRng, RngCore };
 
 use shared::signaling;
 
+#[wasm_bindgen]
 pub struct Peer {
-	pub public_key: p256::PublicKey,
-	pub info: Option<signaling::PushInfo>,
-	pub authorizations: Vec<signaling::PushAuth>,
-	message_queue: signaling::PushMessage
+	public_key: p256::PublicKey,
+	info: Option<signaling::PushInfo>,
+	authorizations: Vec<signaling::PushAuth>,
+	message_queue: signaling::PushMessage,
+	sdp_callback: JsValue,
+	ice_callback: JsValue
 }
 impl From<p256::PublicKey> for Peer {
 	fn from(public_key: p256::PublicKey) -> Self {
@@ -18,11 +25,23 @@ impl From<p256::PublicKey> for Peer {
 			public_key,
 			info: None,
 			authorizations: Vec::new(),
-			message_queue: signaling::PushMessage::new()
+			message_queue: signaling::PushMessage::new(),
+			sdp_callback: JsValue::null(),
+			ice_callback: JsValue::null()
 		}
 	}
 }
 impl Peer {
+	pub fn queue_sdp(&mut self, sdp: &str) {
+
+	}
+	pub fn queue_ice(&mut self, ice: &str) {
+
+	}
+	pub fn flush(&mut self) {
+
+	}
+
 	fn verify_auth(public_key: &p256::PublicKey, info: &Option<signaling::PushInfo>, auth: &signaling::PushAuth) -> bool {
 		if let Some(push_info) = info {
 			let audience = Url::parse(&push_info.endpoint).unwrap().origin().unicode_serialization();
@@ -81,10 +100,21 @@ impl Peer {
 
 pub struct SelfPeer {
 	pub secret_key: p256::SecretKey,
-	pub info: Option<signaling::PushInfo>
+	pub info: Option<signaling::PushInfo>,
+	pub subscriber: Option<String>
 }
 impl SelfPeer {
-	pub fn create_auth(&self, expiration: u32, subscriber: Option<String>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
+	pub fn new(rng: impl RngCore + CryptoRng) -> Self {
+		Self {
+			secret_key: p256::SecretKey::generate(rng),
+			info: None,
+			subscriber: None
+		}
+	}
+	pub fn get_intro(&self) -> &str {
+
+	}
+	fn create_auth(&self, expiration: u32, subscriber: Option<String>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
 		if let Some(push_info) = &self.info {
 			let subscriber_str = match &subscriber {
 				Some(sub) => sub,
