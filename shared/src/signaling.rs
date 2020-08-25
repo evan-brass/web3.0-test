@@ -9,6 +9,12 @@ use flate2::{
 	write::{DeflateEncoder,DeflateDecoder}
 };
 use anyhow::{Context, anyhow};
+use serde::{
+	Serialize,
+	Deserialize,
+	ser::{ Serializer, SerializeTuple },
+	de::{ Deserializer, Visitor, SeqAccess }
+};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct PushInfo {
@@ -16,14 +22,31 @@ pub struct PushInfo {
 	pub auth: [u8; 16],
 	pub endpoint: String
 }
+impl Serialize for PushInfo {
+	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+		let mut auth = serializer.serialize_tuple(16)?;
+		for b in self.auth.iter() {
+			auth.serialize_element(b)?;
+		}
+		auth.end()?;
+		serializer.serialize_bytes(self.public_key.as_ref())?;
+		serializer.serialize_str(&self.endpoint)
+	}
+}
+impl<'de> Deserialize<'de> for PushInfo {
+	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+		
+	}
+}
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct PushAuth {
 	pub expiration: u32,
 	pub subscriber: String,
 	pub signature: p256::ecdsa::Signature
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum SDPDescription {
 	Offer(String),
 	Answer(String)

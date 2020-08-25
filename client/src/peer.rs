@@ -7,24 +7,40 @@ use p256::{
 };
 use std::convert::TryFrom;
 use rand::{ CryptoRng, RngCore };
+use serde::{ Serialize, Deserialize };
 
 use shared::signaling;
+use super::persist::Persist;
 
-#[wasm_bindgen]
-pub struct Peer {
+
+struct PeerPersist {
 	public_key: p256::PublicKey,
 	info: Option<signaling::PushInfo>,
 	authorizations: Vec<signaling::PushAuth>,
+}
+#[wasm_bindgen]
+pub struct Peer {
+	persisted: Persist<PeerPersist>,
 	message_queue: signaling::PushMessage,
 	sdp_callback: JsValue,
 	ice_callback: JsValue
 }
-impl From<p256::PublicKey> for Peer {
-	fn from(public_key: p256::PublicKey) -> Self {
+// impl From<p256::PublicKey> for Peer {
+// 	fn from(public_key: p256::PublicKey) -> Self {
+// 		Peer {
+// 			public_key,
+// 			info: None,
+// 			authorizations: Vec::new(),
+// 			message_queue: signaling::PushMessage::new(),
+// 			sdp_callback: JsValue::null(),
+// 			ice_callback: JsValue::null()
+// 		}
+// 	}
+// }
+impl From<PeerPersist> for Peer {
+	fn from(persisted: PeerPersist) -> Peer {
 		Peer {
-			public_key,
-			info: None,
-			authorizations: Vec::new(),
+			persisted,
 			message_queue: signaling::PushMessage::new(),
 			sdp_callback: JsValue::null(),
 			ice_callback: JsValue::null()
@@ -97,7 +113,7 @@ impl Peer {
 	}
 }
 
-
+#[derive(Serialize, Deserialize)]
 pub struct SelfPeer {
 	pub secret_key: p256::SecretKey,
 	pub info: Option<signaling::PushInfo>,
@@ -111,8 +127,8 @@ impl SelfPeer {
 			subscriber: None
 		}
 	}
-	pub fn get_intro(&self) -> &str {
-
+	pub fn get_intro(&self) -> String {
+		unimplemented!("Introduction functionality isn't implemented yet.")
 	}
 	fn create_auth(&self, expiration: u32, subscriber: Option<String>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
 		if let Some(push_info) = &self.info {
