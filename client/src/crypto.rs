@@ -29,6 +29,12 @@ impl<T: Clone> Clone for Wrapper<T> {
 		Wrapper (self.0.clone())
 	}
 }
+impl<T: PartialEq> PartialEq for Wrapper<T> {
+	fn eq(&self, other: &Self) -> bool {
+		self.0.eq(&other.0)
+	}
+}
+impl<T: Eq> Eq for Wrapper<T> {}
 
 // Public Key
 pub type PublicKey = Wrapper<p256::PublicKey>;

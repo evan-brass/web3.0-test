@@ -11,66 +11,22 @@ use flate2::{
 use anyhow::{ Context, anyhow };
 use serde::{
 	Serialize,
-	Deserialize,
-	ser::Serializer,
-	de::Deserializer
+	Deserialize
 };
+use super::crypto;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct PushInfo {
-	pub public_key: p256::PublicKey,
+	pub public_key: crypto::PublicKey,
 	pub auth: [u8; 16],
 	pub endpoint: String
 }
-#[derive(Serialize, Deserialize)]
-struct PushInfoSerde ([u8; 16], Vec<u8>, String);
-impl Serialize for PushInfo {
-	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-		let mut auth = [0; 16];
-		auth.copy_from_slice(&self.auth);
-		let public_key = self.public_key.as_bytes().to_vec();
-		let data = PushInfoSerde (auth, public_key, self.endpoint.clone());
-		data.serialize(serializer)
-	}
-}
-impl<'de> Deserialize<'de> for PushInfo {
-	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-		PushInfoSerde::deserialize(deserializer).map(|data| {
-			PushInfo {
-				// TODO: Handle when the public key is invalid.
-				public_key: p256::PublicKey::from_bytes(&data.1).unwrap(),
-				auth: data.0,
-				endpoint: data.2
-			}
-		})
-	}
-}
 
-#[derive(Serialize, Deserialize, Clone)]
-struct PushAuthSerde(u32, Vec<u8>, String);
+#[derive(Serialize, Deserialize)]
 pub struct PushAuth {
 	pub expiration: u32,
 	pub subscriber: String,
-	pub signature: p256::ecdsa::Signature
-}
-impl Serialize for PushAuth {
-	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-		let sig = self.signature.to_asn1().as_ref().to_vec();
-		let data = PushAuthSerde (self.expiration, sig, self.subscriber.clone());
-		data.serialize(serializer)
-	}
-}
-impl<'de> Deserialize<'de> for PushAuth {
-	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-		PushAuthSerde::deserialize(deserializer).map(|data| {
-			PushAuth {
-				// TODO: Handle when the signature is invalid.
-				expiration: data.0,
-				subscriber: data.2,
-				signature: p256::ecdsa::Signature::from_asn1(&data.1).unwrap()
-			}
-		})
-	}
+	pub signature: crypto::Signature
 }
 
 #[derive(Serialize, Deserialize)]
@@ -160,9 +116,9 @@ impl TryFrom<PushMessage> for Box<[u8]> {
 		
 		// Encode the PushInfo
 		if let Some(ref mut info) = input.info {
-			info.public_key.compress();
+			info.public_key.as_mut().compress();
 			// Since we're always using the compressed form we can leave off the first byte tag: it will always be 0x03 (as opposed to 0x04 for the uncompressed version) and the array will always be 32 bytes long.
-			uncompressed_data.extend_from_slice(&info.public_key.as_bytes()[1..]);
+			uncompressed_data.extend_from_slice(&info.public_key.as_ref().as_bytes()[1..]);
 			uncompressed_data.extend_from_slice(&info.auth);
 			println!("Endpoint Length: {}", info.endpoint.len());
 			compressor.write_all(info.endpoint.as_bytes()).context("Compression Error")?;
@@ -267,7 +223,7 @@ impl TryFrom<Box<[u8]>> for PushMessage {
 					compressed = new_compressed;
 
 					Some(PushInfo {
-						public_key,
+						public_key: public_key.into(),
 						auth,
 						endpoint: endpoint.into()
 					})
@@ -361,7 +317,7 @@ mod test_encoding {
 			info: Some(PushInfo {
 				public_key: p256::PublicKey::from_bytes(&vec![
 					4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
-				]).expect("Invalid Public Key??"),
+				]).expect("Invalid Public Key??").into(),
 				auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
 				endpoint: String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w")
 			}),
@@ -388,7 +344,7 @@ mod test_encoding {
 			info: Some(PushInfo {
 				public_key: p256::PublicKey::from_bytes(&vec![
 					4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
-				]).expect("Invalid Public Key??"),
+				]).expect("Invalid Public Key??").into(),
 				auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
 				endpoint: String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w")
 			}),

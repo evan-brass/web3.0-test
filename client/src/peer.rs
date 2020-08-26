@@ -58,14 +58,31 @@ impl Peer {
 			ice_callback: JsValue::null()
 		})
 	}
-	pub fn queue_sdp(&mut self, sdp: &str) {
-
+	pub fn queue_sdp_offer(&mut self, sdp: &str) {
+		if self.message_queue.sdp.is_some() {
+			// TODO: Potentially skip sending the queued message if it's being replaced.
+			self.flush();
+		}
+	}
+	pub fn queue_sdp_answer(&mut self, sdp: &str) {
+		if self.message_queue.sdp.is_some() {
+			// TODO: Potentially skip sending the queued message if it's being replaced.
+			self.flush();
+		}
 	}
 	pub fn queue_ice(&mut self, ice: &str) {
 
 	}
 	pub fn flush(&mut self) {
+		// TODO: Send the push message using the fetch api.
+		self.message_queue = signaling::PushMessage::new();
+	}
 
+	pub fn set_sdp_callback(&mut self, callback: JsValue) {
+		self.sdp_callback = callback;
+	}
+	pub fn set_ice_callback(&mut self, callback: JsValue) {
+		self.ice_callback = callback;
 	}
 
 	fn verify_auth(public_key: &crypto::PublicKey, info: &Option<signaling::PushInfo>, auth: &signaling::PushAuth) -> bool {
@@ -77,12 +94,13 @@ impl Peer {
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 
 			let verifier = Verifier::new(public_key.as_ref()).unwrap();
-			verifier.verify(buffer.as_bytes(), &auth.signature).is_ok()
+			verifier.verify(buffer.as_bytes(), auth.signature.as_ref()).is_ok()
 		} else {
 			false
 		}
 	}
 	pub fn handle_message(&mut self, buffer: Box<[u8]>) -> Result<(), anyhow::Error> {
+		// TODO: Minimize changes - each one causes a save which causes a serialization.
 		match signaling::PushMessage::try_from(buffer) {
 			Ok(message) => {
 				if message.info.is_some() && self.persisted.as_ref().info != message.info {
@@ -107,9 +125,10 @@ impl Peer {
 					let auth = signaling::PushAuth {
 						expiration: message.auth_expiration + index as u32 * (12 * 60),
 						subscriber: message.auth_subscriber.clone().unwrap_or_else(|| String::from("mailto:no-reply@example.com")),
-						signature: sig.clone()
+						signature: sig.clone().into()
 					};
 					if Self::verify_auth(&self.persisted.as_ref().public_key, &self.persisted.as_ref().info, &auth) {
+						// TODO: Minimize changes - each one causes a save which causes a serialization.
 						self.persisted.make_change(|persisted| {
 							persisted.authorizations.push(auth);
 						})?;
@@ -158,7 +177,7 @@ impl SelfPeer {
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 			let signer = Signer::new(self.secret_key.as_ref()).unwrap();
-			let signature = signer.sign_with_rng(rng, buffer.as_bytes());
+			let signature = signer.sign_with_rng(rng, buffer.as_bytes()).into();
 			
 			signaling::PushAuth {
 				expiration,
