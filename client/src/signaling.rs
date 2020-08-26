@@ -6,14 +6,14 @@ use std::{
 use byteorder::ByteOrder;
 use flate2::{
 	Compression,
-	write::{DeflateEncoder,DeflateDecoder}
+	write::{ DeflateEncoder, DeflateDecoder }
 };
-use anyhow::{Context, anyhow};
+use anyhow::{ Context, anyhow };
 use serde::{
 	Serialize,
 	Deserialize,
-	ser::{ Serializer, SerializeTuple },
-	de::{ Deserializer, Visitor, SeqAccess }
+	ser::Serializer,
+	de::Deserializer
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -22,28 +22,55 @@ pub struct PushInfo {
 	pub auth: [u8; 16],
 	pub endpoint: String
 }
+#[derive(Serialize, Deserialize)]
+struct PushInfoSerde ([u8; 16], Vec<u8>, String);
 impl Serialize for PushInfo {
 	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-		let mut auth = serializer.serialize_tuple(16)?;
-		for b in self.auth.iter() {
-			auth.serialize_element(b)?;
-		}
-		auth.end()?;
-		serializer.serialize_bytes(self.public_key.as_ref())?;
-		serializer.serialize_str(&self.endpoint)
+		let mut auth = [0; 16];
+		auth.copy_from_slice(&self.auth);
+		let public_key = self.public_key.as_bytes().to_vec();
+		let data = PushInfoSerde (auth, public_key, self.endpoint.clone());
+		data.serialize(serializer)
 	}
 }
 impl<'de> Deserialize<'de> for PushInfo {
 	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-		
+		PushInfoSerde::deserialize(deserializer).map(|data| {
+			PushInfo {
+				// TODO: Handle when the public key is invalid.
+				public_key: p256::PublicKey::from_bytes(&data.1).unwrap(),
+				auth: data.0,
+				endpoint: data.2
+			}
+		})
 	}
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+struct PushAuthSerde(u32, Vec<u8>, String);
 pub struct PushAuth {
 	pub expiration: u32,
 	pub subscriber: String,
 	pub signature: p256::ecdsa::Signature
+}
+impl Serialize for PushAuth {
+	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+		let sig = self.signature.to_asn1().as_ref().to_vec();
+		let data = PushAuthSerde (self.expiration, sig, self.subscriber.clone());
+		data.serialize(serializer)
+	}
+}
+impl<'de> Deserialize<'de> for PushAuth {
+	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+		PushAuthSerde::deserialize(deserializer).map(|data| {
+			PushAuth {
+				// TODO: Handle when the signature is invalid.
+				expiration: data.0,
+				subscriber: data.2,
+				signature: p256::ecdsa::Signature::from_asn1(&data.1).unwrap()
+			}
+		})
+	}
 }
 
 #[derive(Serialize, Deserialize)]

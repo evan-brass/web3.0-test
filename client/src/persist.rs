@@ -44,10 +44,14 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 		};
 		Ok(peer)
 	}
-	pub fn with_mut<R>(&mut self, func: impl FnOnce(&mut T) -> R) -> Result<R, anyhow::Error> {
+	pub fn make_change<R>(&mut self, func: impl FnOnce(&mut T) -> R) -> Result<R, anyhow::Error> {
 		let result = func(&mut self.value);
 		self.save()?;
 		Ok(result)
+	}
+	pub fn delete(self) -> Result<(), anyhow::Error>{
+		let lc = get_local_storage()?;
+		lc.remove_item(&self.key).map_err(|_| anyhow!("Failed to remove local storage entry."))
 	}
 }
 impl<T> AsRef<T> for Persist<T> {

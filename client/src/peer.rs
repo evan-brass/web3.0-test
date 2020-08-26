@@ -9,15 +9,31 @@ use std::convert::TryFrom;
 use rand::{ CryptoRng, RngCore };
 use serde::{ Serialize, Deserialize };
 
-use shared::signaling;
+use super::signaling;
 use super::persist::Persist;
+use super::crypto;
 
 
+pub struct PeerList (Vec<Peer>);
+impl AsRef<Vec<Peer>> for PeerList {
+	fn as_ref(&self) -> &Vec<Peer> {
+		&self.0
+	}
+}
+impl AsMut<Vec<Peer>> for PeerList {
+	fn as_mut(&mut self) -> &mut Vec<Peer> {
+		&mut self.0
+	}
+}
+
+#[derive(Serialize, Deserialize)]
+struct PeerPersistSerde (Vec<u8>, Option<signaling::PushInfo>, Vec<signaling::PushAuth>);
 struct PeerPersist {
-	public_key: p256::PublicKey,
+	public_key: crypto::PublicKey,
 	info: Option<signaling::PushInfo>,
 	authorizations: Vec<signaling::PushAuth>,
 }
+
 #[wasm_bindgen]
 pub struct Peer {
 	persisted: Persist<PeerPersist>,
@@ -37,17 +53,24 @@ pub struct Peer {
 // 		}
 // 	}
 // }
-impl From<PeerPersist> for Peer {
-	fn from(persisted: PeerPersist) -> Peer {
-		Peer {
-			persisted,
+impl Peer {
+	pub fn new(public_key: p256::PublicKey) -> Result<Self, anyhow::Error> {
+		Ok(Self {
+			persisted: Persist::new(
+				&format!("peer.{}", base64::encode_config(public_key.as_bytes(), base64::URL_SAFE_NO_PAD)), 
+				|| {
+					PeerPersist {
+						public_key,
+						info: None,
+						authorizations: Vec::new()
+					}
+				}
+			)?,
 			message_queue: signaling::PushMessage::new(),
 			sdp_callback: JsValue::null(),
 			ice_callback: JsValue::null()
-		}
+		})
 	}
-}
-impl Peer {
 	pub fn queue_sdp(&mut self, sdp: &str) {
 
 	}

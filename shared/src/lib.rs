@@ -2,7 +2,6 @@
 use p256;
 
 pub mod base;
-pub mod signaling;
 
 pub enum ServiceWorkerMessage {
 	SelfPublicKey(p256::PublicKey),

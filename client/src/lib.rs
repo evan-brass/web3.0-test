@@ -1,10 +1,12 @@
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use anyhow::{ Context, anyhow };
-
-use shared::*;
 mod peer;
 mod persist;
+mod crypto;
+mod signaling;
+
+use shared::*;
 use persist::Persist;
 use peer::{ Peer, SelfPeer };
 use rand::{
@@ -24,8 +26,10 @@ fn get_crypto_seed() -> Result<[u8; 32], anyhow::Error> {
 pub fn start() {
 	base::init();
 
-	let mut rng = StdRng::from_seed(get_crypto_seed().unwrap());
+	let rng = StdRng::from_seed(get_crypto_seed().unwrap());
 
 	let mut peer_list: Persist<Vec<p256::PublicKey>> = Persist::new("peer_list", || Vec::new()).unwrap();
-	let mut self_peer = Persist::new("self_peer", || SelfPeer::new());
+	let mut self_peer = Persist::new("self_peer", || {
+		SelfPeer::new(rng)
+	});
 }
