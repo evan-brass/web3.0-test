@@ -28,7 +28,7 @@ pub fn start() {
 
 	let rng = StdRng::from_seed(get_crypto_seed().unwrap());
 
-	let mut peer_list: Persist<Vec<p256::PublicKey>> = Persist::new("peer_list", || Vec::new()).unwrap();
+	let mut peer_list: Persist<Vec<crypto::PublicKey>> = Persist::new("peer_list", || Vec::new()).unwrap();
 	let mut self_peer = Persist::new("self_peer", || {
 		SelfPeer::new(rng)
 	});

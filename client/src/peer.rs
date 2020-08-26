@@ -27,7 +27,6 @@ impl AsMut<Vec<Peer>> for PeerList {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PeerPersistSerde (Vec<u8>, Option<signaling::PushInfo>, Vec<signaling::PushAuth>);
 struct PeerPersist {
 	public_key: crypto::PublicKey,
 	info: Option<signaling::PushInfo>,
@@ -41,23 +40,11 @@ pub struct Peer {
 	sdp_callback: JsValue,
 	ice_callback: JsValue
 }
-// impl From<p256::PublicKey> for Peer {
-// 	fn from(public_key: p256::PublicKey) -> Self {
-// 		Peer {
-// 			public_key,
-// 			info: None,
-// 			authorizations: Vec::new(),
-// 			message_queue: signaling::PushMessage::new(),
-// 			sdp_callback: JsValue::null(),
-// 			ice_callback: JsValue::null()
-// 		}
-// 	}
-// }
 impl Peer {
-	pub fn new(public_key: p256::PublicKey) -> Result<Self, anyhow::Error> {
+	pub fn new(public_key: crypto::PublicKey) -> Result<Self, anyhow::Error> {
 		Ok(Self {
 			persisted: Persist::new(
-				&format!("peer.{}", base64::encode_config(public_key.as_bytes(), base64::URL_SAFE_NO_PAD)), 
+				&format!("peer.{}", base64::encode_config(public_key.as_ref().as_bytes(), base64::URL_SAFE_NO_PAD)), 
 				|| {
 					PeerPersist {
 						public_key,
@@ -81,7 +68,7 @@ impl Peer {
 
 	}
 
-	fn verify_auth(public_key: &p256::PublicKey, info: &Option<signaling::PushInfo>, auth: &signaling::PushAuth) -> bool {
+	fn verify_auth(public_key: &crypto::PublicKey, info: &Option<signaling::PushInfo>, auth: &signaling::PushAuth) -> bool {
 		if let Some(push_info) = info {
 			let audience = Url::parse(&push_info.endpoint).unwrap().origin().unicode_serialization();
 			let body = format!("{{\"aud\":\"{}\",\"exp\":{},\"sub\":\"{}\"}}", audience, auth.expiration, auth.subscriber);
@@ -89,29 +76,32 @@ impl Peer {
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 
-			let verifier = Verifier::new(public_key).unwrap();
+			let verifier = Verifier::new(public_key.as_ref()).unwrap();
 			verifier.verify(buffer.as_bytes(), &auth.signature).is_ok()
 		} else {
 			false
 		}
 	}
-	pub fn handle_message(&mut self, buffer: Box<[u8]>) {
+	pub fn handle_message(&mut self, buffer: Box<[u8]>) -> Result<(), anyhow::Error> {
 		match signaling::PushMessage::try_from(buffer) {
 			Ok(message) => {
-				if message.info.is_some() && self.info != message.info {
-					self.info = message.info;
-					println!("Push info changed for this peer");
-
-					// Remove any auths that don't match the new info
-					let ref mut auths = self.authorizations;
-					let mut i = 0;
-					while i != auths.len() {
-						if !Self::verify_auth(&self.public_key, &self.info, &auths[i]) {
-							let val = auths.remove(i);
-						} else {
-							i += 1;
+				if message.info.is_some() && self.persisted.as_ref().info != message.info {
+					let new_info = message.info;
+					self.persisted.make_change(|persisted| {
+						println!("Push info changed for this peer");
+						persisted.info = new_info;
+	
+						// Remove any auths that don't match the new info
+						let ref mut auths = persisted.authorizations;
+						let mut i = 0;
+						while i != auths.len() {
+							if !Self::verify_auth(&persisted.public_key, &persisted.info, &auths[i]) {
+								let _val = auths.remove(i);
+							} else {
+								i += 1;
+							}
 						}
-					}
+					})?;
 				}
 				for (index, sig) in message.auth_signatures.iter().enumerate() {
 					let auth = signaling::PushAuth {
@@ -119,8 +109,10 @@ impl Peer {
 						subscriber: message.auth_subscriber.clone().unwrap_or_else(|| String::from("mailto:no-reply@example.com")),
 						signature: sig.clone()
 					};
-					if Self::verify_auth(&self.public_key, &self.info, &auth) {
-						self.authorizations.push(auth);
+					if Self::verify_auth(&self.persisted.as_ref().public_key, &self.persisted.as_ref().info, &auth) {
+						self.persisted.make_change(|persisted| {
+							persisted.authorizations.push(auth);
+						})?;
 					}
 				}
 				// TODO: Remove old authorizations
@@ -133,19 +125,20 @@ impl Peer {
 			},
 			Err(reason) => println!("Received a message that didn't parse correctly: {}", reason)
 		}
+		Ok(())
 	}
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct SelfPeer {
-	pub secret_key: p256::SecretKey,
+	pub secret_key: crypto::SecretKey,
 	pub info: Option<signaling::PushInfo>,
 	pub subscriber: Option<String>
 }
 impl SelfPeer {
 	pub fn new(rng: impl RngCore + CryptoRng) -> Self {
 		Self {
-			secret_key: p256::SecretKey::generate(rng),
+			secret_key: p256::SecretKey::generate(rng).into(),
 			info: None,
 			subscriber: None
 		}
@@ -164,7 +157,7 @@ impl SelfPeer {
 			let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
-			let signer = Signer::new(&self.secret_key).unwrap();
+			let signer = Signer::new(self.secret_key.as_ref()).unwrap();
 			let signature = signer.sign_with_rng(rng, buffer.as_bytes());
 			
 			signaling::PushAuth {
