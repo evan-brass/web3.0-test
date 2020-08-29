@@ -2,17 +2,11 @@ use wasm_bindgen::prelude::*;
 use url::Url;
 use base64;
 use p256::{
-	elliptic_curve::Generate,
-	ecdsa::{ Signer, Verifier, signature::Verifier as _, signature::RandomizedSigner }
+	ecdsa::{ Verifier, signature::Verifier as _ }
 };
-use anyhow::{ Context, anyhow };
 use std::{
 	convert::TryFrom,
 	fmt::Debug
-};
-use rand::{
-	CryptoRng,
-	RngCore
 };
 use serde::{ 
 	Serialize, 
@@ -24,19 +18,7 @@ use serde::{
 use super::signaling;
 use super::persist::Persist;
 use super::crypto;
-use super::rand::get_rng;
 
-trait ToJsError {
-	type T;
-	fn to_js_error(self) -> Result<Self::T, JsValue>;
-}
-
-impl<T, E: Debug> ToJsError for Result<T, E> {
-	type T = T;
-	fn to_js_error(self) -> Result<T, JsValue> {
-		self.map_err(|e| JsValue::from(js_sys::Error::new(&format!("{:?}", e))))
-	}
-}
 
 #[wasm_bindgen]
 pub struct PeerList {
@@ -222,83 +204,5 @@ impl Peer {
 			Err(reason) => println!("Received a message that didn't parse correctly: {}", reason)
 		}
 		Ok(())
-	}
-}
-
-#[wasm_bindgen]
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SelfPeer {
-	secret_key: crypto::SecretKey,
-	info: Option<signaling::PushInfo>,
-	subscriber: Option<String>
-}
-impl SelfPeer {
-	pub fn sign_and_encode(&self, data: &[u8]) -> Result<String, anyhow::Error> {
-		let signer = Signer::new(self.secret_key.as_ref()).map_err(|_| anyhow!("Couldn't create a signer."))?;
-		let signature = signer.sign_with_rng(get_rng(), data);
-		let mut concatonated = Vec::new();
-		concatonated.extend_from_slice(signature.as_ref());
-		concatonated.extend_from_slice(data);
-		Ok(base64::encode_config(concatonated, base64::STANDARD_NO_PAD))
-	}
-	fn create_auth(&self, expiration: u32, subscriber: Option<&str>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
-		if let Some(push_info) = &self.info {
-			let subscriber_str = match &subscriber {
-				Some(sub) => sub,
-				None => "mailto:no-reply@example.com"
-			};
-			let audience = Url::parse(&push_info.endpoint).unwrap().origin().unicode_serialization();
-			let body = format!("{{\"aud\":\"{}\",\"exp\":{},\"sub\":\"{}\"}}", audience, expiration, subscriber_str);
-			let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
-
-			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
-			let signer = Signer::new(self.secret_key.as_ref()).unwrap();
-			let signature = signer.sign_with_rng(rng, buffer.as_bytes()).into();
-			
-			signaling::PushAuth {
-				expiration,
-				signature,
-				subscriber: subscriber_str.into()
-			}
-		} else {
-			panic!("Can't create an auth without push_info being set!")
-		}
-	}
-}
-#[wasm_bindgen]
-impl SelfPeer {
-	#[wasm_bindgen(constructor)]
-	pub fn new() -> Self {
-		Self {
-			secret_key: p256::SecretKey::generate(get_rng()).into(),
-			info: None,
-			subscriber: None
-		}
-	}
-	pub fn get_intro(&self) -> Result<String, JsValue> {
-		if let Some(ref push_info) = self.info {
-			let base_expiration = (js_sys::Date::now() / 1000.0) as u32;
-			let message = signaling::PushMessage {
-				info: Some(push_info.clone()),
-				auth_expiration: base_expiration,
-				auth_subscriber: self.subscriber.clone(),
-				auth_signatures: (0..4).map(|index| {
-					self.create_auth(
-						base_expiration + index * (12 * 60),
-						self.subscriber.as_deref(), 
-						get_rng()
-					).signature.unwrap()
-				}).collect(),
-				sdp: None,
-				ice: Vec::new()
-			};
-			let buffer = Box::<[u8]>::try_from(message).context("Introduction message failed to serialize.").to_js_error()?;
-			self.sign_and_encode(&buffer).to_js_error()
-		} else {
-			Err(anyhow!("Can't create an introduction for a self-peer until that self peer has some push info.")).to_js_error()
-		}
-	}
-	pub fn send_message(&self, msg: signaling::PushMessage) -> Result<(), JsValue> {
-		unimplemented!("Haven't implemented sending yet.")
 	}
 }

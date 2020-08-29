@@ -5,6 +5,7 @@ mod persist;
 mod crypto;
 mod signaling;
 mod rand;
+mod self_peer;
 
 use shared::*;
 

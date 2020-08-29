@@ -1,34 +1,15 @@
-// import service_worker_api from './rpc-client.mjs';
+import init, { SelfPeer, PeerList } from '../../wasm/debug/client.js';
 
-// import mount from '../../extern/js-min/src/templating/mount.mjs';
-// import html from '../../extern/js-min/src/templating/html.mjs';
-// // import css from '../../extern/js-min/src/templating/css.mjs';
-// import on from '../../extern/js-min/src/templating/users/on.mjs';
-// import ref from '../../extern/js-min/src/templating/users/ref.mjs';
-// import NodeArray from '../../extern/js-min/src/templating/users/node-array.mjs';
+async function run() {
+	await init();
+	console.log("WASM Initialized");
 
-// import Base from '../../extern/js-min/src/custom-elements/base.mjs';
-
-// import wrap_signal from '../../extern/js-min/src/cancellation/wrap-signal.mjs';
-
-// import NEVER from '../../extern/js-min/src/lib/never.mjs';
-// // import delay from '../../extern/js-min/src/lib/delay.mjs';
-
-// import initialized from './init.mjs';
-
-// import differed from '../../extern/js-min/src/lib/differed.mjs';
-
-// import create_spinner from './ui/spinner.mjs';
-
-// import PeerItem from './ui/peer-item.mjs';
-
-// import main_css from './main.css.mjs';
-
-import init, { start } from '../../wasm/debug/client.js';
-init().then(_ => {
-	console.log('Loaded WASM.');
-	start();
-});
+	const self = new SelfPeer();
+	console.log(self);
+	const peers = new PeerList();
+	console.log(peers);
+}
+run();
 
 // class Web3Friends extends Base {
 // 	async run(signal) {
