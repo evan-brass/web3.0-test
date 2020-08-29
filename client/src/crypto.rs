@@ -8,7 +8,13 @@ use serde::{
 use p256::ecdsa::signature::Signature as _;
 
 // Simple new-type wrapper
+#[derive(Debug)]
 pub struct Wrapper<T> (T);
+impl<T> Wrapper<T> {
+	pub fn unwrap(self) -> T {
+		self.0
+	}
+}
 impl<T> AsRef<T> for Wrapper<T> {
 	fn as_ref(&self) -> &T {
 		&self.0
@@ -35,6 +41,11 @@ impl<T: PartialEq> PartialEq for Wrapper<T> {
 	}
 }
 impl<T: Eq> Eq for Wrapper<T> {}
+// impl<T: std::fmt::Debug> std::fmt::Debug for Wrapper<T> {
+// 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+// 		self.0.fmt(f)
+// 	}
+// }
 
 // Public Key
 pub type PublicKey = Wrapper<p256::PublicKey>;

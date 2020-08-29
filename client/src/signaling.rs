@@ -13,36 +13,45 @@ use serde::{
 	Serialize,
 	Deserialize
 };
+use wasm_bindgen::prelude::*;
 use super::crypto;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct PushInfo {
 	pub public_key: crypto::PublicKey,
 	pub auth: [u8; 16],
 	pub endpoint: String
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PushAuth {
 	pub expiration: u32,
 	pub subscriber: String,
 	pub signature: crypto::Signature
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SDPDescription {
 	Offer(String),
 	Answer(String)
 }
 
+#[wasm_bindgen]
+#[derive(Debug)]
 pub struct PushMessage {
+	#[wasm_bindgen(skip)]
 	pub info: Option<PushInfo>,
 	// Expiration of the first signature, each signature after that is for +12hr (12 hr * 60 sec/hr = 720)
+	#[wasm_bindgen(skip)]
 	pub auth_expiration: u32,
 	// All Push authorizations must share the same subscriber (None indicates mailto:no-reply@example.com or maybe an email account that I'll setup)
+	#[wasm_bindgen(skip)]
 	pub auth_subscriber: Option<String>,
+	#[wasm_bindgen(skip)]
 	pub auth_signatures: Vec<p256::ecdsa::Signature>,
+	#[wasm_bindgen(skip)]
 	pub sdp: Option<SDPDescription>,
+	#[wasm_bindgen(skip)]
 	pub ice: Vec<String>
 }
 impl PushMessage {

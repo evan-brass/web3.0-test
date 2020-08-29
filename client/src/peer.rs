@@ -5,28 +5,78 @@ use p256::{
 	elliptic_curve::Generate,
 	ecdsa::{ Signer, Verifier, signature::Verifier as _, signature::RandomizedSigner }
 };
-use std::convert::TryFrom;
-use rand::{ CryptoRng, RngCore };
-use serde::{ Serialize, Deserialize };
+use anyhow::{ Context, anyhow };
+use std::{
+	convert::TryFrom,
+	fmt::Debug
+};
+use rand::{
+	CryptoRng,
+	RngCore
+};
+use serde::{ 
+	Serialize, 
+	Deserialize,
+	ser::Serializer,
+	de::Deserializer
+};
 
 use super::signaling;
 use super::persist::Persist;
 use super::crypto;
+use super::rand::get_rng;
 
-
-pub struct PeerList (Vec<Peer>);
-impl AsRef<Vec<Peer>> for PeerList {
-	fn as_ref(&self) -> &Vec<Peer> {
-		&self.0
-	}
-}
-impl AsMut<Vec<Peer>> for PeerList {
-	fn as_mut(&mut self) -> &mut Vec<Peer> {
-		&mut self.0
-	}
+trait ToJsError {
+	type T;
+	fn to_js_error(self) -> Result<Self::T, JsValue>;
 }
 
-#[derive(Serialize, Deserialize)]
+impl<T, E: Debug> ToJsError for Result<T, E> {
+	type T = T;
+	fn to_js_error(self) -> Result<T, JsValue> {
+		self.map_err(|e| JsValue::from(js_sys::Error::new(&format!("{:?}", e))))
+	}
+}
+
+#[wasm_bindgen]
+pub struct PeerList {
+	list: Persist<Vec<Peer>>,
+	new_peer_callback: JsValue
+}
+#[wasm_bindgen]
+impl PeerList {
+	#[wasm_bindgen(constructor)]
+	pub fn new() -> Self {
+		let list = Persist::new("peer_list", || Vec::new()).unwrap();
+		PeerList {
+			list,
+			new_peer_callback: JsValue::null()
+		}
+	}
+	pub fn handle_message(&mut self, message: String) -> Result<(), JsValue> {
+		let buff = base64::decode_config(
+			message, 
+			base64::STANDARD_NO_PAD
+		).map_err(|_| JsValue::from_str("Base64 decode failed"))?;
+		unimplemented!("TODO: Implement message handling.")
+		// Seperate signature
+		// Derive signing key
+		// Find / create a peer for the key
+		// Apply the message to the peer.
+
+	}
+	#[wasm_bindgen(setter = new_peer_callback)]
+	pub fn set_new_peer_callback(&mut self, callback: JsValue) {
+		self.new_peer_callback = callback;
+	}
+	#[wasm_bindgen(js_name = iterator)]
+	pub fn get_iterator() {
+
+	}
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
 struct PeerPersist {
 	public_key: crypto::PublicKey,
 	info: Option<signaling::PushInfo>,
@@ -34,11 +84,64 @@ struct PeerPersist {
 }
 
 #[wasm_bindgen]
+#[derive(Debug)]
 pub struct Peer {
 	persisted: Persist<PeerPersist>,
 	message_queue: signaling::PushMessage,
 	sdp_callback: JsValue,
 	ice_callback: JsValue
+}
+impl Serialize for Peer {
+	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+		let encoded = base64::encode_config(
+			self.persisted.as_ref().public_key.as_ref().as_bytes(),
+			base64::URL_SAFE_NO_PAD
+		);
+		encoded.serialize(serializer)
+	}
+}
+impl<'de> Deserialize<'de> for Peer {
+	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+		let encoded = String::deserialize(deserializer)?;
+		// TODO: Handle invalid base64
+		let bytes = base64::decode_config(encoded, base64::URL_SAFE_NO_PAD).unwrap();
+		let public_key = p256::PublicKey::from_bytes(bytes).unwrap().into();
+		Ok(Peer::new(public_key).unwrap())
+	}
+}
+#[wasm_bindgen]
+impl Peer {
+	pub fn queue_sdp_offer(&mut self, sdp: &str) -> Option<signaling::PushMessage> {
+		self.flush_if_with_op(self.message_queue.sdp.is_some(), 
+			|queue| queue.sdp = Some(signaling::SDPDescription::Offer(sdp.into()))
+		)
+	}
+	pub fn queue_sdp_answer(&mut self, sdp: &str) -> Option<signaling::PushMessage> {
+		self.flush_if_with_op(self.message_queue.sdp.is_some(), 
+			|queue| queue.sdp = Some(signaling::SDPDescription::Answer(sdp.into()))
+		)
+	}
+	pub fn queue_ice(&mut self, ice: &str) -> Option<signaling::PushMessage> {
+		self.flush_if_with_op(self.message_queue.ice.len() >= 3, 
+			|queue| queue.ice.push(ice.into())
+		)
+	}
+	fn flush_if_with_op(&mut self, condition: bool, op: impl FnOnce(&mut signaling::PushMessage)) -> Option<signaling::PushMessage> {
+		let ret = if condition {
+			Some(std::mem::replace(&mut self.message_queue, signaling::PushMessage::new()))
+		} else {
+			None
+		};
+		op(&mut self.message_queue);
+		ret
+	}
+
+	pub fn set_sdp_callback(&mut self, callback: JsValue) {
+		self.sdp_callback = callback;
+	}
+	pub fn set_ice_callback(&mut self, callback: JsValue) {
+		self.ice_callback = callback;
+	}
 }
 impl Peer {
 	pub fn new(public_key: crypto::PublicKey) -> Result<Self, anyhow::Error> {
@@ -57,32 +160,6 @@ impl Peer {
 			sdp_callback: JsValue::null(),
 			ice_callback: JsValue::null()
 		})
-	}
-	pub fn queue_sdp_offer(&mut self, sdp: &str) {
-		if self.message_queue.sdp.is_some() {
-			// TODO: Potentially skip sending the queued message if it's being replaced.
-			self.flush();
-		}
-	}
-	pub fn queue_sdp_answer(&mut self, sdp: &str) {
-		if self.message_queue.sdp.is_some() {
-			// TODO: Potentially skip sending the queued message if it's being replaced.
-			self.flush();
-		}
-	}
-	pub fn queue_ice(&mut self, ice: &str) {
-
-	}
-	pub fn flush(&mut self) {
-		// TODO: Send the push message using the fetch api.
-		self.message_queue = signaling::PushMessage::new();
-	}
-
-	pub fn set_sdp_callback(&mut self, callback: JsValue) {
-		self.sdp_callback = callback;
-	}
-	pub fn set_ice_callback(&mut self, callback: JsValue) {
-		self.ice_callback = callback;
 	}
 
 	fn verify_auth(public_key: &crypto::PublicKey, info: &Option<signaling::PushInfo>, auth: &signaling::PushAuth) -> bool {
@@ -148,24 +225,23 @@ impl Peer {
 	}
 }
 
-#[derive(Serialize, Deserialize)]
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SelfPeer {
-	pub secret_key: crypto::SecretKey,
-	pub info: Option<signaling::PushInfo>,
-	pub subscriber: Option<String>
+	secret_key: crypto::SecretKey,
+	info: Option<signaling::PushInfo>,
+	subscriber: Option<String>
 }
 impl SelfPeer {
-	pub fn new(rng: impl RngCore + CryptoRng) -> Self {
-		Self {
-			secret_key: p256::SecretKey::generate(rng).into(),
-			info: None,
-			subscriber: None
-		}
+	pub fn sign_and_encode(&self, data: &[u8]) -> Result<String, anyhow::Error> {
+		let signer = Signer::new(self.secret_key.as_ref()).map_err(|_| anyhow!("Couldn't create a signer."))?;
+		let signature = signer.sign_with_rng(get_rng(), data);
+		let mut concatonated = Vec::new();
+		concatonated.extend_from_slice(signature.as_ref());
+		concatonated.extend_from_slice(data);
+		Ok(base64::encode_config(concatonated, base64::STANDARD_NO_PAD))
 	}
-	pub fn get_intro(&self) -> String {
-		unimplemented!("Introduction functionality isn't implemented yet.")
-	}
-	fn create_auth(&self, expiration: u32, subscriber: Option<String>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
+	fn create_auth(&self, expiration: u32, subscriber: Option<&str>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
 		if let Some(push_info) = &self.info {
 			let subscriber_str = match &subscriber {
 				Some(sub) => sub,
@@ -187,5 +263,42 @@ impl SelfPeer {
 		} else {
 			panic!("Can't create an auth without push_info being set!")
 		}
+	}
+}
+#[wasm_bindgen]
+impl SelfPeer {
+	#[wasm_bindgen(constructor)]
+	pub fn new() -> Self {
+		Self {
+			secret_key: p256::SecretKey::generate(get_rng()).into(),
+			info: None,
+			subscriber: None
+		}
+	}
+	pub fn get_intro(&self) -> Result<String, JsValue> {
+		if let Some(ref push_info) = self.info {
+			let base_expiration = (js_sys::Date::now() / 1000.0) as u32;
+			let message = signaling::PushMessage {
+				info: Some(push_info.clone()),
+				auth_expiration: base_expiration,
+				auth_subscriber: self.subscriber.clone(),
+				auth_signatures: (0..4).map(|index| {
+					self.create_auth(
+						base_expiration + index * (12 * 60),
+						self.subscriber.as_deref(), 
+						get_rng()
+					).signature.unwrap()
+				}).collect(),
+				sdp: None,
+				ice: Vec::new()
+			};
+			let buffer = Box::<[u8]>::try_from(message).context("Introduction message failed to serialize.").to_js_error()?;
+			self.sign_and_encode(&buffer).to_js_error()
+		} else {
+			Err(anyhow!("Can't create an introduction for a self-peer until that self peer has some push info.")).to_js_error()
+		}
+	}
+	pub fn send_message(&self, msg: signaling::PushMessage) -> Result<(), JsValue> {
+		unimplemented!("Haven't implemented sending yet.")
 	}
 }

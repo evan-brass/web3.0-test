@@ -27,7 +27,7 @@ echo.
 
 echo Running wasm-bindgen:
 wasm-bindgen --out-dir %out_dir% --no-typescript --out-name client --target web %target_dir%\client.wasm
-wasm-bindgen --out-dir %out_dir% --no-typescript --out-name service-worker --target no-modules %target_dir%\service_worker.wasm
+REM wasm-bindgen --out-dir %out_dir% --no-typescript --out-name service-worker --target no-modules %target_dir%\service_worker.wasm
 echo.
 
 echo Running wasm-opt:

@@ -4,6 +4,7 @@ use anyhow::{ Context, anyhow };
 use bincode;
 use base64;
 
+#[derive(Debug)]
 pub struct Persist<T> {
 	key: String,
 	value: T
