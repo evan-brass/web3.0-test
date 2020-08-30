@@ -104,12 +104,38 @@ impl SelfPeer {
 	pub fn send_message(&self, msg: signaling::PushMessage) -> Result<(), JsValue> {
 		unimplemented!("Haven't implemented sending yet.")
 	}
-	pub fn get_public_key(&self) -> Result<String, JsValue> {
+	pub fn get_public_key(&self) -> Result<Vec<u8>, JsValue> {
 		let public_key = p256::PublicKey::from_secret_key(
 			self.persist.as_ref().secret_key.as_ref(), 
 			true
 		).context("Failed to get public key from our secret key.").to_js_error()?;
-		Ok(base64::encode_config(public_key.as_bytes(), base64::URL_SAFE_NO_PAD))
+		Ok(public_key.as_bytes().to_vec())
+	}
+	pub fn set_push_info(&mut self, browser_pk: Vec<u8>, auth: Vec<u8>, endpoint: String) -> Result<(), JsValue> {
+		let public_key = p256::PublicKey::from_bytes(&browser_pk)
+			.context("Couldn't turn browser_pk bytes into a public key.").to_js_error()?.into();
+		let auth = if auth.len() == 16 {
+			let mut arr: [u8; 16] = [0; 16];
+			arr.copy_from_slice(&auth);
+			Ok(arr)
+		} else {
+			Err(anyhow!("Auth was not 16 bytes.")).to_js_error()
+		}?;
+
+		let info = Some(signaling::PushInfo {
+			public_key,
+			auth,
+			endpoint
+		});
+		
+		if info != self.persist.as_ref().info {
+			// Only re-persist the info if it's changed.
+			self.persist.make_change(|data| {
+				data.info = info;
+			}).to_js_error()
+		} else {
+			Ok(())
+		}
 	}
 	#[wasm_bindgen(setter = subscriber)]
 	pub fn set_subscriber(&mut self, value: JsValue) -> Result<(), JsValue> {

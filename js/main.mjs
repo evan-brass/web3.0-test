@@ -15,11 +15,68 @@ async function run() {
 	console.log("Subscriber after setting to false: ", self.subscriber);
 
 	// Register our service worker which will pass push message on to us.
-	let registration = await navigator.serviceWorker.getRegistration();
-	if (!registration) {
-		registration = await navigator.serviceWorker.register('./service-worker.js');
+	let sw_reg = await navigator.serviceWorker.getRegistration();
+	if (!sw_reg) {
+		sw_reg = await navigator.serviceWorker.register('./service-worker.js');
 	}
 
-
+	// Get the push subscription
+	let subscription;
+	const push_manager = sw_reg.pushManager;
+	while (true) {
+		try {
+			// Check for an existing subscription:
+			subscription = await push_manager.getSubscription();
+		} catch (e) {
+			console.warn(e);
+		}
+		if (subscription) {
+			// Verify that the subscription's application server key matches our self key
+			const test = new Uint8Array(subscription.options.applicationServerKey);
+			if (test.length != self_pk.length || !test.every((val, i) => val == self_pk[i])) {
+				if (!await subscription.unsubscribe()) {
+					throw new Error("Couldn't unsubscribe existing subscription which didn't match our self key!");
+				}
+				subscription = false;
+			}
+		}
+		// Since we didn't have a previous subscription (or it didn't match our self key), try to create a new one.
+		if (!subscription) {
+			const permission_state = push_manager.permissionState({
+				applicationServerKey: self_pk,
+				userVisibleOnly: true
+			});
+			if (permission_state !== 'granted') {
+				// Requesting notification permission requires user interaction, so create a button for the user to click.
+				await new Promise(resolve => {
+					const click_me = document.createElement('button');
+					click_me.innerText = "Prompt to enable WebPush";
+					document.body.appendChild(click_me);
+					click_me.onclick = _ => {
+						click_me.remove();
+						resolve();
+					};
+				});
+			}
+			try {
+				// TODO: Switch off userVisibleOnly in the future when allowed.
+				subscription = await push_manager.subscribe({
+					userVisibleOnly: true,
+					applicationServerKey: self_public_key.buffer
+				});
+			} catch (e) {
+				last_error = e;
+			}
+		}
+		if (subscription) {
+			// We always send the subscription information and let the service-worker check if it's the same as what it already has.
+			self.set_push_info(
+				new Uint8Array(subscription.getKey('p256dh')),
+				new Uint8Array(subscription.getKey('auth')),
+				subscription.endpoint
+			);
+			break;
+		}
+	}
 }
 run();
