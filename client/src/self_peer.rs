@@ -38,7 +38,7 @@ impl SelfPeer {
 		let mut concatonated = Vec::new();
 		concatonated.extend_from_slice(signature.as_ref());
 		concatonated.extend_from_slice(data);
-		Ok(base64::encode_config(concatonated, base64::STANDARD_NO_PAD))
+		Ok(base64::encode_config(concatonated, base64::URL_SAFE_NO_PAD))
 	}
 	fn create_auth(&self, expiration: u32, subscriber: Option<&str>, rng: impl CryptoRng + RngCore) -> signaling::PushAuth {
 		let self_data = self.persist.as_ref();
@@ -107,7 +107,7 @@ impl SelfPeer {
 	pub fn get_public_key(&self) -> Result<Vec<u8>, JsValue> {
 		let public_key = p256::PublicKey::from_secret_key(
 			self.persist.as_ref().secret_key.as_ref(), 
-			true
+			false
 		).context("Failed to get public key from our secret key.").to_js_error()?;
 		Ok(public_key.as_bytes().to_vec())
 	}
@@ -127,7 +127,7 @@ impl SelfPeer {
 			auth,
 			endpoint
 		});
-		
+
 		if info != self.persist.as_ref().info {
 			// Only re-persist the info if it's changed.
 			self.persist.make_change(|data| {

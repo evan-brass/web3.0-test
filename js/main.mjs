@@ -62,14 +62,13 @@ async function run() {
 				// TODO: Switch off userVisibleOnly in the future when allowed.
 				subscription = await push_manager.subscribe({
 					userVisibleOnly: true,
-					applicationServerKey: self_public_key.buffer
+					applicationServerKey: self_pk
 				});
 			} catch (e) {
-				last_error = e;
+				console.warn(e);
 			}
 		}
 		if (subscription) {
-			// We always send the subscription information and let the service-worker check if it's the same as what it already has.
 			self.set_push_info(
 				new Uint8Array(subscription.getKey('p256dh')),
 				new Uint8Array(subscription.getKey('auth')),
@@ -78,5 +77,8 @@ async function run() {
 			break;
 		}
 	}
+
+	const introduction = self.get_intro();
+	console.log(`Introduction(${introduction.length}): `, introduction);
 }
 run();

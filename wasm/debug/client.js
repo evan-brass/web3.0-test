@@ -119,6 +119,17 @@ function _assertClass(instance, klass) {
     }
     return instance.ptr;
 }
+
+function getArrayU8FromWasm0(ptr, len) {
+    return getUint8Memory0().subarray(ptr / 1, ptr / 1 + len);
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1);
+    getUint8Memory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
 /**
 */
 export function start() {
@@ -134,10 +145,6 @@ function handleError(f) {
             wasm.__wbindgen_exn_store(addHeapObject(e));
         }
     };
-}
-
-function getArrayU8FromWasm0(ptr, len) {
-    return getUint8Memory0().subarray(ptr / 1, ptr / 1 + len);
 }
 /**
 */
@@ -297,7 +304,7 @@ export class SelfPeer {
         wasm.selfpeer_send_message(this.ptr, ptr0);
     }
     /**
-    * @returns {string}
+    * @returns {Uint8Array}
     */
     get_public_key() {
         try {
@@ -306,11 +313,26 @@ export class SelfPeer {
             wasm.selfpeer_get_public_key(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
-            return getStringFromWasm0(r0, r1);
+            var v0 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_free(r0, r1 * 1);
+            return v0;
         } finally {
             wasm.__wbindgen_export_2.value += 16;
-            wasm.__wbindgen_free(r0, r1);
         }
+    }
+    /**
+    * @param {Uint8Array} browser_pk
+    * @param {Uint8Array} auth
+    * @param {string} endpoint
+    */
+    set_push_info(browser_pk, auth, endpoint) {
+        var ptr0 = passArray8ToWasm0(browser_pk, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        var ptr1 = passArray8ToWasm0(auth, wasm.__wbindgen_malloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ptr2 = passStringToWasm0(endpoint, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        wasm.selfpeer_set_push_info(this.ptr, ptr0, len0, ptr1, len1, ptr2, len2);
     }
     /**
     * @param {any} value
