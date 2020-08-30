@@ -1,38 +1,13 @@
 
 let wasm;
 
-let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
-
-cachedTextDecoder.decode();
-
-let cachegetUint8Memory0 = null;
-function getUint8Memory0() {
-    if (cachegetUint8Memory0 === null || cachegetUint8Memory0.buffer !== wasm.memory.buffer) {
-        cachegetUint8Memory0 = new Uint8Array(wasm.memory.buffer);
-    }
-    return cachegetUint8Memory0;
-}
-
-function getStringFromWasm0(ptr, len) {
-    return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
-}
-
 const heap = new Array(32).fill(undefined);
 
 heap.push(undefined, null, true, false);
 
-let heap_next = heap.length;
-
-function addHeapObject(obj) {
-    if (heap_next === heap.length) heap.push(heap.length + 1);
-    const idx = heap_next;
-    heap_next = heap[idx];
-
-    heap[idx] = obj;
-    return idx;
-}
-
 function getObject(idx) { return heap[idx]; }
+
+let heap_next = heap.length;
 
 function dropObject(idx) {
     if (idx < 36) return;
@@ -46,27 +21,24 @@ function takeObject(idx) {
     return ret;
 }
 
-let cachegetInt32Memory0 = null;
-function getInt32Memory0() {
-    if (cachegetInt32Memory0 === null || cachegetInt32Memory0.buffer !== wasm.memory.buffer) {
-        cachegetInt32Memory0 = new Int32Array(wasm.memory.buffer);
-    }
-    return cachegetInt32Memory0;
-}
+function addHeapObject(obj) {
+    if (heap_next === heap.length) heap.push(heap.length + 1);
+    const idx = heap_next;
+    heap_next = heap[idx];
 
-function _assertClass(instance, klass) {
-    if (!(instance instanceof klass)) {
-        throw new Error(`expected instance of ${klass.name}`);
-    }
-    return instance.ptr;
-}
-/**
-*/
-export function start() {
-    wasm.start();
+    heap[idx] = obj;
+    return idx;
 }
 
 let WASM_VECTOR_LEN = 0;
+
+let cachegetUint8Memory0 = null;
+function getUint8Memory0() {
+    if (cachegetUint8Memory0 === null || cachegetUint8Memory0.buffer !== wasm.memory.buffer) {
+        cachegetUint8Memory0 = new Uint8Array(wasm.memory.buffer);
+    }
+    return cachegetUint8Memory0;
+}
 
 let cachedTextEncoder = new TextEncoder('utf-8');
 
@@ -121,6 +93,38 @@ function passStringToWasm0(arg, malloc, realloc) {
     return ptr;
 }
 
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
+let cachegetInt32Memory0 = null;
+function getInt32Memory0() {
+    if (cachegetInt32Memory0 === null || cachegetInt32Memory0.buffer !== wasm.memory.buffer) {
+        cachegetInt32Memory0 = new Int32Array(wasm.memory.buffer);
+    }
+    return cachegetInt32Memory0;
+}
+
+let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+
+cachedTextDecoder.decode();
+
+function getStringFromWasm0(ptr, len) {
+    return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
+}
+
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
+    return instance.ptr;
+}
+/**
+*/
+export function start() {
+    wasm.start();
+}
+
 function handleError(f) {
     return function () {
         try {
@@ -130,10 +134,6 @@ function handleError(f) {
             wasm.__wbindgen_exn_store(addHeapObject(e));
         }
     };
-}
-
-function isLikeNone(x) {
-    return x === undefined || x === null;
 }
 
 function getArrayU8FromWasm0(ptr, len) {
@@ -194,10 +194,10 @@ export class Peer {
 }
 /**
 */
-export class PeerList {
+export class PeerManager {
 
     static __wrap(ptr) {
-        const obj = Object.create(PeerList.prototype);
+        const obj = Object.create(PeerManager.prototype);
         obj.ptr = ptr;
 
         return obj;
@@ -207,13 +207,13 @@ export class PeerList {
         const ptr = this.ptr;
         this.ptr = 0;
 
-        wasm.__wbg_peerlist_free(ptr);
+        wasm.__wbg_peermanager_free(ptr);
     }
     /**
     */
     constructor() {
-        var ret = wasm.peerlist_new();
-        return PeerList.__wrap(ret);
+        var ret = wasm.peermanager_new();
+        return PeerManager.__wrap(ret);
     }
     /**
     * @param {string} message
@@ -221,18 +221,13 @@ export class PeerList {
     handle_message(message) {
         var ptr0 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.peerlist_handle_message(this.ptr, ptr0, len0);
+        wasm.peermanager_handle_message(this.ptr, ptr0, len0);
     }
     /**
     * @param {any} callback
     */
     set new_peer_callback(callback) {
-        wasm.peerlist_set_new_peer_callback(this.ptr, addHeapObject(callback));
-    }
-    /**
-    */
-    static iterator() {
-        wasm.peerlist_iterator();
+        wasm.peermanager_set_new_peer_callback(this.ptr, addHeapObject(callback));
     }
 }
 /**
@@ -281,14 +276,14 @@ export class SelfPeer {
     */
     get_intro() {
         try {
-            const retptr = wasm.__wbindgen_export_0.value - 16;
-            wasm.__wbindgen_export_0.value = retptr;
+            const retptr = wasm.__wbindgen_export_2.value - 16;
+            wasm.__wbindgen_export_2.value = retptr;
             wasm.selfpeer_get_intro(retptr, this.ptr);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return getStringFromWasm0(r0, r1);
         } finally {
-            wasm.__wbindgen_export_0.value += 16;
+            wasm.__wbindgen_export_2.value += 16;
             wasm.__wbindgen_free(r0, r1);
         }
     }
@@ -300,6 +295,44 @@ export class SelfPeer {
         var ptr0 = msg.ptr;
         msg.ptr = 0;
         wasm.selfpeer_send_message(this.ptr, ptr0);
+    }
+    /**
+    * @returns {string}
+    */
+    get_public_key() {
+        try {
+            const retptr = wasm.__wbindgen_export_2.value - 16;
+            wasm.__wbindgen_export_2.value = retptr;
+            wasm.selfpeer_get_public_key(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_export_2.value += 16;
+            wasm.__wbindgen_free(r0, r1);
+        }
+    }
+    /**
+    * @param {any} value
+    */
+    set subscriber(value) {
+        wasm.selfpeer_set_subscriber(this.ptr, addHeapObject(value));
+    }
+    /**
+    * @returns {string}
+    */
+    get subscriber() {
+        try {
+            const retptr = wasm.__wbindgen_export_2.value - 16;
+            wasm.__wbindgen_export_2.value = retptr;
+            wasm.selfpeer_get_subscriber(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_export_2.value += 16;
+            wasm.__wbindgen_free(r0, r1);
+        }
     }
 }
 
@@ -342,10 +375,6 @@ async function init(input) {
     }
     const imports = {};
     imports.wbg = {};
-    imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
-        var ret = getStringFromWasm0(arg0, arg1);
-        return addHeapObject(ret);
-    };
     imports.wbg.__wbg_log_b686bdc8b2b231bd = function(arg0, arg1) {
         console.log(getStringFromWasm0(arg0, arg1));
     };
@@ -438,6 +467,14 @@ async function init(input) {
     imports.wbg.__wbindgen_object_clone_ref = function(arg0) {
         var ret = getObject(arg0);
         return addHeapObject(ret);
+    };
+    imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
+        const obj = getObject(arg1);
+        var ret = typeof(obj) === 'string' ? obj : undefined;
+        var ptr0 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        getInt32Memory0()[arg0 / 4 + 1] = len0;
+        getInt32Memory0()[arg0 / 4 + 0] = ptr0;
     };
     imports.wbg.__wbindgen_throw = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));

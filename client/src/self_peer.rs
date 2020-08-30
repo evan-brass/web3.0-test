@@ -104,4 +104,21 @@ impl SelfPeer {
 	pub fn send_message(&self, msg: signaling::PushMessage) -> Result<(), JsValue> {
 		unimplemented!("Haven't implemented sending yet.")
 	}
+	pub fn get_public_key(&self) -> Result<String, JsValue> {
+		let public_key = p256::PublicKey::from_secret_key(
+			self.persist.as_ref().secret_key.as_ref(), 
+			true
+		).context("Failed to get public key from our secret key.").to_js_error()?;
+		Ok(base64::encode_config(public_key.as_bytes(), base64::URL_SAFE_NO_PAD))
+	}
+	#[wasm_bindgen(setter = subscriber)]
+	pub fn set_subscriber(&mut self, value: JsValue) -> Result<(), JsValue> {
+		self.persist.make_change(|data| {
+			data.subscriber = value.as_string()
+		}).to_js_error()
+	}
+	#[wasm_bindgen(getter = subscriber)]
+	pub fn get_subscriber(&mut self) -> String {
+		self.persist.as_ref().subscriber.clone().unwrap_or("mailto:no-reply@example.com".into())
+	}
 }

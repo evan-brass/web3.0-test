@@ -19,45 +19,6 @@ use super::signaling;
 use super::persist::Persist;
 use super::crypto;
 
-
-#[wasm_bindgen]
-pub struct PeerList {
-	list: Persist<Vec<Peer>>,
-	new_peer_callback: JsValue
-}
-#[wasm_bindgen]
-impl PeerList {
-	#[wasm_bindgen(constructor)]
-	pub fn new() -> Self {
-		let list = Persist::new("peer_list", || Vec::new()).unwrap();
-		PeerList {
-			list,
-			new_peer_callback: JsValue::null()
-		}
-	}
-	pub fn handle_message(&mut self, message: String) -> Result<(), JsValue> {
-		let buff = base64::decode_config(
-			message, 
-			base64::STANDARD_NO_PAD
-		).map_err(|_| JsValue::from_str("Base64 decode failed"))?;
-		unimplemented!("TODO: Implement message handling.")
-		// Seperate signature
-		// Derive signing key
-		// Find / create a peer for the key
-		// Apply the message to the peer.
-
-	}
-	#[wasm_bindgen(setter = new_peer_callback)]
-	pub fn set_new_peer_callback(&mut self, callback: JsValue) {
-		self.new_peer_callback = callback;
-	}
-	#[wasm_bindgen(js_name = iterator)]
-	pub fn get_iterator() {
-
-	}
-}
-
-
 #[derive(Serialize, Deserialize, Debug)]
 struct PeerPersist {
 	public_key: crypto::PublicKey,

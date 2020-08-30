@@ -6,6 +6,7 @@ mod crypto;
 mod signaling;
 mod rand;
 mod self_peer;
+mod peer_manager;
 
 use shared::*;
 
