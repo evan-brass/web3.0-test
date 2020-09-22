@@ -1,5 +1,5 @@
+// #![allow(unused_variables, unused_imports, dead_code)]
 use wasm_bindgen::prelude::*;
-use anyhow::{ Context, anyhow };
 mod peer;
 mod persist;
 mod crypto;

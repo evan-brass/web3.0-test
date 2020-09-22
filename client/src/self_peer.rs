@@ -2,8 +2,10 @@ use wasm_bindgen::prelude::*;
 use url::Url;
 use base64;
 use p256::{
-	elliptic_curve::Generate,
-	ecdsa::{ Signer, signature::RandomizedSigner }
+	ecdsa::{
+		SigningKey,
+		signature::RandomizedSigner
+	}
 };
 use anyhow::{ Context, anyhow };
 use std::{
@@ -33,7 +35,7 @@ pub struct SelfPeer {
 impl SelfPeer {
 	pub fn sign_and_encode(&self, data: &[u8]) -> Result<String, anyhow::Error> {
 		let self_data = self.persist.as_ref();
-		let signer = Signer::new(self_data.secret_key.as_ref()).map_err(|_| anyhow!("Couldn't create a signer."))?;
+		let signer = SigningKey::from(self_data.secret_key.as_ref());
 		let signature = signer.sign_with_rng(get_rng(), data);
 		let mut concatonated = Vec::new();
 		concatonated.extend_from_slice(signature.as_ref());
@@ -52,7 +54,7 @@ impl SelfPeer {
 			let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
-			let signer = Signer::new(self_data.secret_key.as_ref()).unwrap();
+			let signer = SigningKey::from(self_data.secret_key.as_ref());
 			let signature = signer.sign_with_rng(rng, buffer.as_bytes()).into();
 			
 			signaling::PushAuth {
@@ -71,7 +73,7 @@ impl SelfPeer {
 	pub fn new() -> Self {
 		Self {
 			persist: Persist::new("self_peer", || SelfPeerData {
-				secret_key: p256::SecretKey::generate(get_rng()).into(),
+				secret_key: p256::SecretKey::random(get_rng()).into(),
 				info: None,
 				subscriber: None
 			}).unwrap()
@@ -81,11 +83,12 @@ impl SelfPeer {
 		if let Some(ref push_info) = self.persist.as_ref().info {
 			let self_data = self.persist.as_ref();
 			let base_expiration = (js_sys::Date::now() / 1000.0) as u32;
+			let num_auths = 0..1; // 1 Signature
 			let message = signaling::PushMessage {
 				info: Some(push_info.clone()),
 				auth_expiration: base_expiration,
 				auth_subscriber: self_data.subscriber.clone(),
-				auth_signatures: (0..4).map(|index| {
+				auth_signatures: num_auths.map(|index| {
 					self.create_auth(
 						base_expiration + index * (12 * 60),
 						self_data.subscriber.as_deref(), 
@@ -101,18 +104,18 @@ impl SelfPeer {
 			Err(anyhow!("Can't create an introduction for a self-peer until that self peer has some push info.")).to_js_error()
 		}
 	}
-	pub fn send_message(&self, msg: signaling::PushMessage) -> Result<(), JsValue> {
+	pub fn send_message(&self, _msg: signaling::PushMessage) -> Result<(), JsValue> {
 		unimplemented!("Haven't implemented sending yet.")
 	}
 	pub fn get_public_key(&self) -> Result<Vec<u8>, JsValue> {
-		let public_key = p256::PublicKey::from_secret_key(
+		let public_key = p256::EncodedPoint::from_secret_key(
 			self.persist.as_ref().secret_key.as_ref(), 
 			false
-		).context("Failed to get public key from our secret key.").to_js_error()?;
+		);
 		Ok(public_key.as_bytes().to_vec())
 	}
 	pub fn set_push_info(&mut self, browser_pk: Vec<u8>, auth: Vec<u8>, endpoint: String) -> Result<(), JsValue> {
-		let public_key = p256::PublicKey::from_bytes(&browser_pk)
+		let public_key = p256::EncodedPoint::from_bytes(&browser_pk)
 			.context("Couldn't turn browser_pk bytes into a public key.").to_js_error()?.into();
 		let auth = if auth.len() == 16 {
 			let mut arr: [u8; 16] = [0; 16];

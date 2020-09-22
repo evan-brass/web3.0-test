@@ -223,7 +223,7 @@ impl TryFrom<Box<[u8]>> for PushMessage {
 				let info = if has_info {
 					let mut pk_buff = vec![3]; // Add the 0x03 that signifies that the PK is in compressed form.
 					pk_buff.extend_from_slice(&uncompressed[0..32]);
-					let public_key = p256::PublicKey::from_bytes(&pk_buff).context("Public Key parsing failed.")?;
+					let public_key = p256::EncodedPoint::from_bytes(&pk_buff).context("Public Key parsing failed.")?;
 					let mut auth = [0; 16];
 					auth.copy_from_slice(&uncompressed[32..46]);
 					uncompressed = &uncompressed[46..];
@@ -324,7 +324,7 @@ mod test_encoding {
 	fn encode_info() {
 		let t = PushMessage {
 			info: Some(PushInfo {
-				public_key: p256::PublicKey::from_bytes(&vec![
+				public_key: p256::EncodedPoint::from_bytes(&vec![
 					4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
 				]).expect("Invalid Public Key??").into(),
 				auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
@@ -343,7 +343,7 @@ mod test_encoding {
 		// let mut pk: [u8; 33] = [0; 33];
 		// pk[0] = 0x03;
 		// pk[1..].copy_from_slice(&encoded[1..33]);
-		// assert_eq!(p256::PublicKey::from_bytes(&pk[0..]).is_some(), true);
+		// assert_eq!(p256::EncodedPoint::from_bytes(&pk[0..]).is_some(), true);
 		println!("Encoded Length: {} {:?}", encoded.len(), encoded);
 	}
 
@@ -351,7 +351,7 @@ mod test_encoding {
 	fn encode_full() {
 		let t = PushMessage {
 			info: Some(PushInfo {
-				public_key: p256::PublicKey::from_bytes(&vec![
+				public_key: p256::EncodedPoint::from_bytes(&vec![
 					4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
 				]).expect("Invalid Public Key??").into(),
 				auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
@@ -370,7 +370,7 @@ mod test_encoding {
 		// let mut pk: [u8; 33] = [0; 33];
 		// pk[0] = 0x03;
 		// pk[1..].copy_from_slice(&encoded[1..33]);
-		// assert_eq!(p256::PublicKey::from_bytes(&pk[0..]).is_some(), true);
+		// assert_eq!(p256::EncodedPoint::from_bytes(&pk[0..]).is_some(), true);
 		println!("Encoded Length: {} {:?}", encoded.len(), encoded);
 	}
 }

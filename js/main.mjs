@@ -5,14 +5,10 @@ async function run() {
 	console.log("WASM Initialized");
 
 	const self = new SelfPeer();
-	console.log(self);
+	console.log("Self Peer: ", self);
 	const self_pk = self.get_public_key();
-	console.log(self_pk);
-	console.log("Previous subscriber: ", self.subscriber);
-	self.subscriber = "mailto:evan-brass@protonmail.com";
-	console.log("New subscriber: ", self.subscriber);
-	self.subscriber = false;
-	console.log("Subscriber after setting to false: ", self.subscriber);
+	console.log("Self Public Key: ", self_pk);
+	console.log("Current Auth Subscriber: ", self.subscriber);
 
 	// Register our service worker which will pass push message on to us.
 	let sw_reg = await navigator.serviceWorker.getRegistration();

@@ -2,7 +2,10 @@ use wasm_bindgen::prelude::*;
 use url::Url;
 use base64;
 use p256::{
-	ecdsa::{ Verifier, signature::Verifier as _ }
+	ecdsa::{
+		VerifyKey,
+		signature::Verifier,
+	}
 };
 use std::{
 	convert::TryFrom,
@@ -48,7 +51,7 @@ impl<'de> Deserialize<'de> for Peer {
 		let encoded = String::deserialize(deserializer)?;
 		// TODO: Handle invalid base64
 		let bytes = base64::decode_config(encoded, base64::URL_SAFE_NO_PAD).unwrap();
-		let public_key = p256::PublicKey::from_bytes(bytes).unwrap().into();
+		let public_key = p256::EncodedPoint::from_bytes(bytes).unwrap().into();
 		Ok(Peer::new(public_key).unwrap())
 	}
 }
@@ -113,7 +116,7 @@ impl Peer {
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 
-			let verifier = Verifier::new(public_key.as_ref()).unwrap();
+			let verifier = VerifyKey::from_encoded_point(public_key.as_ref()).unwrap();
 			verifier.verify(buffer.as_bytes(), auth.signature.as_ref()).is_ok()
 		} else {
 			false

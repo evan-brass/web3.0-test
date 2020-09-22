@@ -50,6 +50,7 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 		self.save()?;
 		Ok(result)
 	}
+	#[allow(dead_code)]
 	pub fn delete(self) -> Result<(), anyhow::Error>{
 		let lc = get_local_storage()?;
 		lc.remove_item(&self.key).map_err(|_| anyhow!("Failed to remove local storage entry."))
