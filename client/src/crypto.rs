@@ -196,90 +196,68 @@ impl RecoverableSignature {
             Err(anyhow!("Failed to decompress R point."))
         }
 	}
+	pub fn from_bytes(bytes: &mut [u8]) -> Result<Self, anyhow::Error> {
+		let prev = bytes[32];
+		let is_odd = prev >= 0b10000000;
+		bytes[32] = prev & 0b01111111;
+		let sig = p256::ecdsa::Signature::from_bytes(bytes).map_err(|_| anyhow!("Signature creation failed."))?;
+		bytes[32] = prev;
+		Ok(Self::from((sig, is_odd)))
+	}
+	pub fn to_bytes(&self) -> [u8; 64] {
+		let mut bytes = [0; 64];
+		bytes.copy_from_slice(self.as_ref().0.as_bytes());
+		assert!(bytes[32] < 0b10000000);
+		if self.as_ref().1 {
+			bytes[32] = bytes[32] | 0b10000000;
+		}
+		bytes
+	}
 }
 
-// pub fn try_sign_recoverable_prehashed<K>(&self, ephemeral_scalar: &K, z: &Scalar) -> Result<(Signature, bool), Error>
-// 	where K: Borrow<Scalar> + Invert<Output = Scalar>	
-// {
-// 	let k_inverse = ephemeral_scalar.invert();
-// 	let k = ephemeral_scalar.borrow();
 
-// 	if k_inverse.is_none().into() || k.is_zero().into() {
-// 		return Err(Error::new());
-// 	}
-
-// 	let k_inverse = k_inverse.unwrap();
-
-// 	// Compute 𝐑 = 𝑘×𝑮
-// 	let R = (ProjectivePoint::generator() * k).to_affine();
-
-// 	// Lift x-coordinate of 𝐑 (element of base field) into a serialized big
-// 	// integer, then reduce it into an element of the scalar field
-// 	let r = Scalar::from_bytes_reduced(&R.x.to_bytes());
-
-// 	// Compute `s` as a signature over `r` and `z`.
-// 	let s = k_inverse * (z + &(r * self));
-
-// 	if s.is_zero().into() {
-// 		return Err(Error::new());
-// 	}
-
-// 	let mut signature = Signature::from_scalars(r, s)?;
-// 	let is_r_odd = bool::from(R.y.is_odd());
-// 	let is_s_high = signature.normalize_s()?;
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use p256::elliptic_curve::FromDigest;
+	use sha2::Digest;
+	#[test]
+	fn test_recovery() {
+		let sk = SecretKey::from(p256::SecretKey::random(rand::thread_rng()));
+		let pk = PublicKey::from(p256::EncodedPoint::from_secret_key(&sk, false));
 	
-// 	Ok((signature, is_r_odd ^ is_s_high))
-// }
+		let message = "Hello World!".as_bytes();
+		let message_prehashed = Scalar::from_digest(sha2::Sha256::new().chain(message));
+		let signature = RecoverableSignature::try_sign_recoverable_prehashed(
+			&Scalar::from(sk.as_ref()),
+			NonZeroScalar::random(rand::thread_rng()),
+			&message_prehashed
+		).unwrap();
+	
+		assert_eq!(
+			pk,
+			signature.recover(&message_prehashed).unwrap()
+		);
+	}
+	
+	#[test]
+	fn to_from_bytes() {
+		let sk = SecretKey::from(p256::SecretKey::random(rand::thread_rng()));
+	
+		let message = "Hello World!".as_bytes();
+		let message_prehashed = Scalar::from_digest(sha2::Sha256::new().chain(message));
+		let signature = RecoverableSignature::try_sign_recoverable_prehashed(
+			&Scalar::from(sk.as_ref()),
+			NonZeroScalar::random(rand::thread_rng()),
+			&message_prehashed
+		).unwrap();
 
-// use sha2::{ Digest, Sha256 };
-// use p256::{
-// 	Scalar,
-// 	ElementBytes,
-// 	AffinePoint,
-// 	ProjectivePoint
-// };
-// impl Signature {
-// 	pub fn recover_public_key(&self, msg: &[u8]) -> Result<PublicKey, anyhow::Error> {
-// 		self.recover_public_key_from_prehash(&Sha256::new().chain(msg).finalize())
-// 	}
-
-// 	/// Recover the public key used to create the given signature as an
-// 	/// [`EncodedPoint`] from the provided precomputed [`Digest`].
-// 	#[allow(non_snake_case, clippy::many_single_char_names)]
-// 	pub fn recover_public_key_from_prehash(&self, msg_prehash: &[u8]) -> Result<PublicKey, anyhow::Error> {
-// 		let sig = self.as_ref();
-// 		let r = sig.r();
-// 		let s = sig.s();
-// 		let z = Scalar::from_bytes_reduced(ElementBytes::from_slice(msg_prehash));
-// 		let x = FieldElement::from_bytes(&r.to_bytes());
-
-// 		let pk = x.and_then(|x| {
-// 			let alpha = (x * &x * &x) + &CURVE_EQUATION_B;
-// 			let beta = alpha.sqrt().unwrap();
-
-// 			let y = FieldElement::conditional_select(
-// 				&beta.negate(1),
-// 				&beta,
-// 				// beta.is_odd() == recovery_id.is_y_odd()
-// 				!(beta.normalize().is_odd() ^ self.recovery_id().is_y_odd()),
-// 			);
-
-// 			let R = ProjectivePoint::from(AffinePoint {
-// 				x,
-// 				y: y.normalize(),
-// 			});
-
-// 			let r_inv = r.invert().unwrap();
-// 			let u1 = -(r_inv * &z);
-// 			let u2 = r_inv * s.as_ref();
-// 			((&ProjectivePoint::generator() * &u1) + &(R * &u2)).to_affine()
-// 		});
-
-// 		// TODO(tarcieri): replace with into conversion when available (see subtle#73)
-// 		if pk.is_some().into() {
-// 			Ok(pk.unwrap().into())
-// 		} else {
-// 			Err(anyhow!("Unable to recover public key from signature."))
-// 		}
-// 	}
-// }
+		let mut sig_bytes = signature.to_bytes();
+		let new_signature = RecoverableSignature::from_bytes(&mut sig_bytes).unwrap();
+	
+		assert_eq!(
+			signature,
+			new_signature
+		);
+	}
+}

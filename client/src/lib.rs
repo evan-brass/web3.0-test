@@ -1,4 +1,4 @@
-// #![allow(unused_variables, unused_imports, dead_code)]
+#![allow(unused_variables, unused_imports, dead_code)]
 use wasm_bindgen::prelude::*;
 mod peer;
 mod persist;
@@ -7,6 +7,7 @@ mod signaling;
 mod rand;
 mod self_peer;
 mod peer_manager;
+mod web_push;
 
 use shared::*;
 
