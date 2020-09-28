@@ -1,12 +1,13 @@
 use p256;
 use std::{
 	convert::TryFrom,
-	io::Write
+	io::{ Write, Read }
 };
-use byteorder::{ByteOrder, WriteBytesExt, BigEndian};
+use byteorder::{ByteOrder, WriteBytesExt, ReadBytesExt, BigEndian};
 use flate2::{
 	Compression,
-	write::{ DeflateEncoder, DeflateDecoder }
+	write::DeflateEncoder,
+	read::DeflateDecoder
 };
 use anyhow::{ Context, anyhow };
 use serde::{
@@ -18,6 +19,7 @@ use super::crypto;
 
 type SDP = String;
 type ICE = String;
+#[derive(Eq, PartialEq, Debug)]
 enum SignalingFormat {
 	Introduction(crypto::PublicKey, [u8; 16], crypto::Signature, String, u32, String),
 	SDPOffer(SDP, Vec<ICE>),
@@ -84,7 +86,7 @@ impl TryFrom<&SignalingFormat> for Vec<u8> {
 			}
 		}
 		let compressed_data = compressor.finish().context("Compression Error")?;
-		println!("Compressed Data: {} {:?}", compressed_data.len(), compressed_data);
+		// println!("Compressed Data: {} {:?}", compressed_data.len(), compressed_data);
 		ret.extend_from_slice(&compressed_data);
 
 		Ok(ret)
@@ -92,84 +94,87 @@ impl TryFrom<&SignalingFormat> for Vec<u8> {
 }
 impl TryFrom<&[u8]> for SignalingFormat {
 	type Error = anyhow::Error;
-	fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-		unimplemented!("Signaling deserialization isn't implemented yet.")
+	fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
+		let (header, buffer) = buffer.split_first().ok_or(anyhow!("Message too short - no header"))?;
+		match header {
+			1 => {
+				if buffer.len() < 112 {
+					return Err(anyhow!("Message too short - uncompressed data"));
+				}
+				let (public_key, buffer) = buffer.split_at(33);
+				let public_key = crypto::PublicKey::from(p256::EncodedPoint::from_bytes(public_key).map_err(|_| anyhow!("Public key invalid"))?);
+				let (auth, buffer) = buffer.split_at(16);
+				let auth = {
+					let mut temp = [0; 16];
+					temp.copy_from_slice(auth);
+					temp
+				};
+				let (signature, buffer) = buffer.split_at(64);
+				let signature = p256::ecdsa::Signature::try_from(signature).map_err(|_| anyhow!("Signature was malformed"))?.into();
+				let mut decompressed = Vec::<u8>::new();
+				let mut decoder = DeflateDecoder::new(buffer);
+				decoder.read_to_end(&mut decompressed).context("Decompression Error")?;
+
+				if decompressed.len() < 5 {
+					return Err(anyhow!("Message too short - compressed data"));
+				}
+				let (expiration, decompressed) = decompressed.split_at(4);
+				let expiration = BigEndian::read_u32(expiration);
+				let null_pos = decompressed.iter().position(|b| *b == 0).ok_or(anyhow!("Missing null byte between endpoint and subscriber"))?;
+				let (endpoint, subscriber) = decompressed.split_at(null_pos);
+				let endpoint = String::from_utf8(endpoint.to_vec()).context("Endpoint not UTF-8 formatted")?;
+				let subscriber = String::from_utf8(subscriber[1..].to_vec()).context("Subscriber not UTF-8 formatted")?;
+
+				Ok(SignalingFormat::Introduction(
+					public_key,
+					auth,
+					signature,
+					endpoint,
+					expiration,
+					subscriber
+				))
+			},
+			2 => {
+				todo!("Implement SDPOffer")
+			},
+			3 => {
+				todo!("Implement SDPAnswer")
+			},
+			4 => {
+				todo!("Implemented JustICE")
+			},
+			5 => {
+				todo!("Implemented JustAuth")
+			},
+			_ => Err(anyhow!("Unrecognized header."))
+		}
 	}
 }
 
 #[cfg(test)]
 mod test_encoding {
 	use super::*;
-	use std::convert::TryInto;
+	use p256::ecdsa::signature::RandomizedSigner;
 
-	// #[test]
-	// fn encode_empty() {
-	// 	let t = PushMessage {
-	// 		info: None,
-	// 		auth_expiration: 0,
-	// 		auth_subscriber: None,
-	// 		auth_signatures: Vec::new(),
-	// 		sdp: None,
-	// 		ice: Vec::new()
-	// 	};
-	// 	let encoded: Box<[u8]> = t.try_into().expect("Encoding Failed");
+	#[test]
+	fn intro_to_from() {
+		let sk = crypto::SecretKey::from(p256::SecretKey::random(rand::thread_rng()));
+		let signature = crypto::Signature::from(
+			p256::ecdsa::SigningKey::from(sk.as_ref()).sign_with_rng(rand::thread_rng(), "Hello World!".as_bytes())
+		);
 
-	// 	// Verify the header:
-	// 	assert_eq!(encoded[0], 0);
-	// 	println!("Encoded Length: {} {:?}", encoded.len(), encoded);
-	// }
-	
-	// #[test]
-	// fn encode_info() {
-	// 	let t = PushMessage {
-	// 		info: Some(PushInfo {
-	// 			public_key: p256::EncodedPoint::from_bytes(&vec![
-	// 				4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
-	// 			]).expect("Invalid Public Key??").into(),
-	// 			auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
-	// 			endpoint: String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w")
-	// 		}),
-	// 		auth_expiration: 0,
-	// 		auth_subscriber: None,
-	// 		auth_signatures: Vec::new(),
-	// 		sdp: None,
-	// 		ice: Vec::new()
-	// 	};
-	// 	let encoded: Box<[u8]> = t.try_into().expect("Encoding Failed");
-	
-	// 	// Verify the header:
-	// 	assert_eq!(encoded[0], 128);
-	// 	// let mut pk: [u8; 33] = [0; 33];
-	// 	// pk[0] = 0x03;
-	// 	// pk[1..].copy_from_slice(&encoded[1..33]);
-	// 	// assert_eq!(p256::EncodedPoint::from_bytes(&pk[0..]).is_some(), true);
-	// 	println!("Encoded Length: {} {:?}", encoded.len(), encoded);
-	// }
+		let intro = SignalingFormat::Introduction(
+			p256::EncodedPoint::from_secret_key(&sk, true).into(),
+			[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
+			signature,
+			String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w"),
+			1601336440,
+			String::from("mailto:no-reply@example.com")
+		);
 
-	// #[test]
-	// fn encode_full() {
-	// 	let t = PushMessage {
-	// 		info: Some(PushInfo {
-	// 			public_key: p256::EncodedPoint::from_bytes(&vec![
-	// 				4, 47, 43, 48, 30, 72, 13, 220, 138, 31, 45, 169, 78, 64, 142, 35, 182, 251, 98, 140, 83, 115, 218, 211, 77, 254, 249, 108, 197, 75, 197, 42, 162, 84, 66, 110, 82, 167, 240, 22, 56, 88, 202, 249, 190, 34, 41, 57, 205, 134, 228, 243, 157, 0, 106, 222, 42, 6, 5, 238, 100, 207, 117, 193, 1
-	// 			]).expect("Invalid Public Key??").into(),
-	// 			auth: [191, 224, 70, 14, 147, 230, 123, 138, 77, 160, 151, 225, 232, 185, 141, 35],
-	// 			endpoint: String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w")
-	// 		}),
-	// 		auth_expiration: 0,
-	// 		auth_subscriber: None,
-	// 		auth_signatures: Vec::new(),
-	// 		sdp: None,
-	// 		ice: Vec::new()
-	// 	};
-	// 	let encoded: Box<[u8]> = t.try_into().expect("Encoding Failed");
-	
-	// 	// Verify the header:
-	// 	assert_eq!(encoded[0], 128);
-	// 	// let mut pk: [u8; 33] = [0; 33];
-	// 	// pk[0] = 0x03;
-	// 	// pk[1..].copy_from_slice(&encoded[1..33]);
-	// 	// assert_eq!(p256::EncodedPoint::from_bytes(&pk[0..]).is_some(), true);
-	// 	println!("Encoded Length: {} {:?}", encoded.len(), encoded);
-	// }
+		let bytes = Vec::<u8>::try_from(&intro).expect("Failed to serialize introduction");
+		// println!("Encoded introduction: {:?}", bytes);
+		let recovered_intro = SignalingFormat::try_from(&bytes[..]).expect("Failed to recover encoded introduction.");
+		assert_eq!(intro, recovered_intro);
+	}
 }
