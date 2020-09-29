@@ -96,6 +96,12 @@ impl TryFrom<&[u8]> for SignalingFormat {
 	type Error = anyhow::Error;
 	fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
 		let (header, buffer) = buffer.split_first().ok_or(anyhow!("Message too short - no header"))?;
+		fn decompress(buffer: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+			let mut decompressed = Vec::<u8>::new();
+			let mut decoder = DeflateDecoder::new(buffer);
+			decoder.read_to_end(&mut decompressed).context("Decompression Error")?;
+			Ok(decompressed)
+		}
 		match header {
 			1 => {
 				if buffer.len() < 112 {
@@ -111,9 +117,7 @@ impl TryFrom<&[u8]> for SignalingFormat {
 				};
 				let (signature, buffer) = buffer.split_at(64);
 				let signature = p256::ecdsa::Signature::try_from(signature).map_err(|_| anyhow!("Signature was malformed"))?.into();
-				let mut decompressed = Vec::<u8>::new();
-				let mut decoder = DeflateDecoder::new(buffer);
-				decoder.read_to_end(&mut decompressed).context("Decompression Error")?;
+				let decompressed = decompress(buffer)?;
 
 				if decompressed.len() < 5 {
 					return Err(anyhow!("Message too short - compressed data"));
@@ -134,11 +138,18 @@ impl TryFrom<&[u8]> for SignalingFormat {
 					subscriber
 				))
 			},
-			2 => {
-				todo!("Implement SDPOffer")
-			},
-			3 => {
-				todo!("Implement SDPAnswer")
+			2 | 3 => {
+				let decompressed = decompress(buffer)?;
+				let mut strings = decompressed.split(|x| *x == 0).map(|bytes| String::from_utf8(bytes.to_vec()));
+				let sdp = strings.next().ok_or(anyhow!("No SDP - too few strings"))?.map_err(|_| anyhow!("SDP not UTF-8 formatted"))?;
+				let ices = strings.filter_map(|x| {
+					x.ok().filter(|s| s.len() > 0)
+				}).collect();
+				if *header == 2 {
+					Ok(SignalingFormat::SDPOffer(sdp, ices))
+				} else {
+					Ok(SignalingFormat::SDPAnswer(sdp, ices))
+				}
 			},
 			4 => {
 				todo!("Implemented JustICE")
@@ -173,8 +184,21 @@ mod test_encoding {
 		);
 
 		let bytes = Vec::<u8>::try_from(&intro).expect("Failed to serialize introduction");
-		// println!("Encoded introduction: {:?}", bytes);
 		let recovered_intro = SignalingFormat::try_from(&bytes[..]).expect("Failed to recover encoded introduction.");
 		assert_eq!(intro, recovered_intro);
+	}
+	#[test]
+	fn offer_to_from() {
+		let offer = SignalingFormat::SDPOffer(
+			String::from(r#"{"type":"offer","sdp":"v=0\r\no=- 98574467085887535 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=msid-semantic: WMS\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\na=ice-ufrag:ohUt\r\na=ice-pwd:ccZoAfoV2tRCn1vTkY7Q0hSc\r\na=ice-options:trickle\r\na=fingerprint:sha-256 69:6C:35:5E:7F:3F:C1:0C:BE:68:51:C5:5A:D8:2A:94:EC:40:C0:D4:AB:27:45:08:C9:7B:E2:83:8A:0D:AE:40\r\na=setup:actpass\r\na=mid:0\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n"}"#), 
+			vec![
+				String::from(r#"{"candidate":"candidate:3031090232 1 udp 2113937151 443211da-69fc-4300-a6f3-d8d8e5ded476.local 53358 typ host generation 0 ufrag ohUt network-cost 999","sdpMid":"0","sdpMLineIndex":0}"#),
+				String::from(r#"{"candidate":"candidate:3031090232 1 udp 2113937151 443211da-69fc-4300-a6f3-d8d8e5ded476.local 53360 typ host generation 0 ufrag gy75 network-cost 999","sdpMid":"0","sdpMLineIndex":0}"#)
+			]
+		);
+
+		let bytes = Vec::<u8>::try_from(&offer).expect("Offer serialization failed.");
+		let recovered_offer = SignalingFormat::try_from(&bytes[..]).expect("Offer deserialization failed.");
+		assert_eq!(offer, recovered_offer);
 	}
 }
