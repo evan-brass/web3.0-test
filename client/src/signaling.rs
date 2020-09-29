@@ -55,17 +55,12 @@ impl TryFrom<&SignalingFormat> for Vec<u8> {
 				compressor.write_u8(0).context("Compression Error")?;
 				compressor.write_all(auth_sub.as_bytes()).context("Compression Error")?;
 			},
-			SignalingFormat::SDPOffer(sdp, ices) => {
-				ret.push(2);
-				compressor.write_all(sdp.as_bytes()).context("Compression Error")?;
-				compressor.write_u8(0).context("Compression Error")?;
-				for ice in ices {
-					compressor.write_all(ice.as_bytes()).context("Compression Error")?;
-					compressor.write_u8(0).context("Compression Error")?;
+			SignalingFormat::SDPOffer(sdp, ices) | SignalingFormat::SDPAnswer(sdp, ices) => {
+				if let SignalingFormat::SDPOffer(..) = msg {
+					ret.push(2);
+				} else {
+					ret.push(3);
 				}
-			},
-			SignalingFormat::SDPAnswer(sdp, ices) => {
-				ret.push(3);
 				compressor.write_all(sdp.as_bytes()).context("Compression Error")?;
 				compressor.write_u8(0).context("Compression Error")?;
 				for ice in ices {
@@ -200,5 +195,19 @@ mod test_encoding {
 		let bytes = Vec::<u8>::try_from(&offer).expect("Offer serialization failed.");
 		let recovered_offer = SignalingFormat::try_from(&bytes[..]).expect("Offer deserialization failed.");
 		assert_eq!(offer, recovered_offer);
+	}
+	#[test]
+	fn answer_to_from() {
+		let answer = SignalingFormat::SDPOffer(
+			String::from(r#"{"type":"answer","sdp":"v=0\r\no=- 3605549176647233135 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0\r\na=msid-semantic: WMS\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\nb=AS:30\r\na=ice-ufrag:gy75\r\na=ice-pwd:bx2RiuKgXEWxtV12Bbx+45Bk\r\na=ice-options:trickle\r\na=fingerprint:sha-256 5A:F9:16:38:1F:EC:6A:D4:9F:61:9C:4C:F1:9E:4A:3B:7E:9D:AD:27:81:AF:62:43:34:EF:70:17:57:4C:88:E7\r\na=setup:active\r\na=mid:0\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n"}"#),
+			vec![
+				String::from(r#"{"candidate":"candidate:3031090232 1 udp 2113937151 443211da-69fc-4300-a6f3-d8d8e5ded476.local 53358 typ host generation 0 ufrag ohUt network-cost 999","sdpMid":"0","sdpMLineIndex":0}"#),
+				String::from(r#"{"candidate":"candidate:3031090232 1 udp 2113937151 443211da-69fc-4300-a6f3-d8d8e5ded476.local 53360 typ host generation 0 ufrag gy75 network-cost 999","sdpMid":"0","sdpMLineIndex":0}"#)
+			]
+		);
+
+		let bytes = Vec::<u8>::try_from(&answer).expect("Offer serialization failed.");
+		let recovered_answer = SignalingFormat::try_from(&bytes[..]).expect("Offer deserialization failed.");
+		assert_eq!(answer, recovered_answer);
 	}
 }
