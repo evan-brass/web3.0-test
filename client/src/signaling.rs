@@ -147,7 +147,11 @@ impl TryFrom<&[u8]> for SignalingFormat {
 				}
 			},
 			4 => {
-				todo!("Implemented JustICE")
+				let decompressed = decompress(buffer)?;
+				let ices = decompressed.split(|x| *x == 0).filter_map(|bytes| {
+					String::from_utf8(bytes.to_vec()).ok().filter(|s|s.len() > 0)
+				}).collect();
+				Ok(SignalingFormat::JustIce(ices))
 			},
 			5 => {
 				todo!("Implemented JustAuth")
@@ -209,5 +213,18 @@ mod test_encoding {
 		let bytes = Vec::<u8>::try_from(&answer).expect("Offer serialization failed.");
 		let recovered_answer = SignalingFormat::try_from(&bytes[..]).expect("Offer deserialization failed.");
 		assert_eq!(answer, recovered_answer);
+	}
+	#[test]
+	fn just_ice_to_from() {
+		let just_ice = SignalingFormat::JustIce(
+			vec![
+				String::from(r#"{"candidate":"candidate:3031090232 1 udp 2113937151 443211da-69fc-4300-a6f3-d8d8e5ded476.local 53358 typ host generation 0 ufrag ohUt network-cost 999","sdpMid":"0","sdpMLineIndex":0}"#),
+				String::from(r#"{"candidate":"candidate:3031090232 1 udp 2113937151 443211da-69fc-4300-a6f3-d8d8e5ded476.local 53360 typ host generation 0 ufrag gy75 network-cost 999","sdpMid":"0","sdpMLineIndex":0}"#)
+			]
+		);
+
+		let bytes = Vec::<u8>::try_from(&just_ice).expect("Offer serialization failed.");
+		let recovered_just_ice = SignalingFormat::try_from(&bytes[..]).expect("Offer deserialization failed.");
+		assert_eq!(just_ice, recovered_just_ice);
 	}
 }
