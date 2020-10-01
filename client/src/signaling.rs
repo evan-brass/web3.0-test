@@ -20,6 +20,7 @@ use shared::*;
 
 use super::crypto;
 use super::peer::peer_tag;
+use super::web_push::{PushInfo, AuthToken};
 
 #[wasm_bindgen]
 pub struct ParsedMessage {
@@ -61,7 +62,7 @@ type SDP = String;
 type ICE = String;
 #[derive(Eq, PartialEq, Debug)]
 pub enum SignalingFormat {
-	Introduction(crypto::PublicKey, [u8; 16], crypto::Signature, String, u32, String),
+	Introduction(PushInfo, AuthToken),
 	SDPOffer(SDP, Vec<ICE>),
 	SDPAnswer(SDP, Vec<ICE>),
 	JustIce(Vec<ICE>),
@@ -78,22 +79,15 @@ impl TryFrom<&SignalingFormat> for Vec<u8> {
 		let mut ret = Vec::new();
 		let mut compressor = DeflateEncoder::new(Vec::new(), Compression::best());
 		match msg {
-			SignalingFormat::Introduction(
-				info_pk,
-				info_auth,
-				auth_sig,
-				info_endpoint,
-				auth_exp,
-				auth_sub
-			) => {
+			SignalingFormat::Introduction(info, auth) => {
 				ret.push(1);
-				ret.extend_from_slice(info_pk.compress().as_bytes());
-				ret.extend_from_slice(&info_auth[..]);
-				ret.extend_from_slice(auth_sig.as_ref().as_ref());
-				compressor.write_u32::<BigEndian>(*auth_exp).context("Compression Error")?;
-				compressor.write_all(info_endpoint.as_bytes()).context("Compression Error")?;
+				ret.extend_from_slice(info.public_key.compress().as_bytes());
+				ret.extend_from_slice(&info.auth);
+				ret.extend_from_slice(auth.signature.as_ref().as_ref());
+				compressor.write_u32::<BigEndian>(auth.expiration).context("Compression Error")?;
+				compressor.write_all(info.endpoint.as_bytes()).context("Compression Error")?;
 				compressor.write_u8(0).context("Compression Error")?;
-				compressor.write_all(auth_sub.as_bytes()).context("Compression Error")?;
+				compressor.write_all(auth.subscriber.as_bytes()).context("Compression Error")?;
 			},
 			SignalingFormat::SDPOffer(sdp, ices) | SignalingFormat::SDPAnswer(sdp, ices) => {
 				if let SignalingFormat::SDPOffer(..) = msg {
@@ -165,12 +159,12 @@ impl TryFrom<&[u8]> for SignalingFormat {
 				let subscriber = String::from_utf8(subscriber[1..].to_vec()).context("Subscriber not UTF-8 formatted")?;
 
 				Ok(SignalingFormat::Introduction(
-					public_key,
-					auth,
-					signature,
-					endpoint,
-					expiration,
-					subscriber
+					PushInfo {
+						public_key, auth, endpoint
+					},
+					AuthToken {
+						signature, expiration, subscriber
+					}
 				))
 			},
 			2 | 3 => {
@@ -214,12 +208,16 @@ mod test_encoding {
 		);
 
 		let intro = SignalingFormat::Introduction(
-			p256::EncodedPoint::from_secret_key(&sk, true).into(),
-			[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
-			signature,
-			String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w"),
-			1601336440,
-			String::from("mailto:no-reply@example.com")
+			PushInfo {
+				public_key: p256::EncodedPoint::from_secret_key(&sk, true).into(),
+				auth: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
+				endpoint: String::from("https://fcm.googleapis.com/fcm/send/c7KtKcy5AHA:APA91bG0yt50A_m7lsb_EPs3NSdwqSE7S2y8D-Yp38baVaIYdRE-Sw9EYNzOOgb95XUVSlyFwYVgybc0fwZapSeyB0TBWKAN-uinEuQlpl58T6jWRDr3IymyRxWdwSkIlHDbSoYpXD9w"),
+			},
+			AuthToken {
+				signature,
+				expiration: 1601336440,
+				subscriber: String::from("mailto:no-reply@example.com")
+			}
 		);
 
 		let bytes = Vec::<u8>::try_from(&intro).expect("Failed to serialize introduction");

@@ -27,6 +27,8 @@ use sha2::Digest;
 use ecdsa;
 use anyhow::{Context, anyhow};
 
+use super::rand::get_rng;
+
 // Simple new-type wrapper
 #[derive(Debug)]
 pub struct Wrapper<T> (T);
@@ -176,6 +178,12 @@ impl RecoverableSignature {
 		let signature = ecdsa::Signature::from_scalars(r, s).map_err(|_| anyhow!("Failed to create signature from r and s"))?;
 		
 		Ok(Self((signature, is_R_odd ^ is_s_high)))
+	}
+	pub fn try_sign_recoverable(sk: &SecretKey, bytes: &[u8]) -> Result<Self, anyhow::Error> {
+		let secret_scalar = sk.as_ref().secret_scalar();
+		let ephemeral_scalar = NonZeroScalar::random(get_rng());
+		let message_hash = Scalar::from_digest(sha2::Sha256::new().chain(bytes));
+		Self::try_sign_recoverable_prehashed(secret_scalar, ephemeral_scalar, &message_hash)
 	}
 	#[allow(non_snake_case)]
 	pub fn recover(&self, message_hash: &Scalar) -> Result<PublicKey, anyhow::Error> {

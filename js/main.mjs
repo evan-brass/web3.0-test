@@ -74,10 +74,15 @@ async function run() {
 		}
 	}
 
-	// const introduction = self.get_intro();
-	// console.log(`Introduction(${introduction.length}): `, introduction);
+	const introduction = self.get_introduction();
+	console.log(`Introduction(${introduction.length}): `, introduction);
 
 	let peers = Peer.get_all_peers();
 	console.log("Peers: ", peers);
+	// TODO: Put the peers in a map
+	// Show a nice UI for them
+	// Show an apply intro and create intro UI
+	// Parse the url fragment for an introduction
+	// Build a little chat application
 }
 run();

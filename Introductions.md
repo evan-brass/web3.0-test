@@ -17,6 +17,27 @@ ulplS6AEQaP9gDHDlnyf1IPM-KNIEw
 JGs8j1cbhoLF8brsUbOvn88yICx31y
 BMl854SuHgWgYQh8m0cPEP
 
+1 Push Auth, Recoverable Signature, Intro PK in compressed form (plus tag byte), Single Byte Header, URL base64 no pad, Deflate compressed expiration + endpoint + subscriber with a null byte between the two strings.
+514
+AQMViPmAD+mYTVZsVTW5jzLQjjnHJl
+j6qn/lDmJoneVxXwwILfcwmg7JA5MZ
+OOq09lI7V+3fVNFBrsp3IIiU4pQFXS
+wpC5F1oDL26rvs3EwN8LWZ4L0dZYeA
+Qpfx9lVMSuAlraqYTs+uBoorgSYusj
+QWNc7NboIwAABgb3saKA4Xh7fW6Jxx
+hYCO4cVQ+kMrLZV2wt5hD71sya7f6Z
+vB74fWe+tWAPBGh6LvRcdqK13Y9PqX
+gGOGAsqNrY0eEaxWMIPJnGyUWgbYO/
+lEp7K9US0idNKCr3fVI9sWLymfugjy
+3Zkoy7ayfNvfMrif2rS4vlfyFfG0WK
+S5gvIrKPFxyeNuzjfK5EOByVneTyO/
+KkRNZhMke3rxSXw4DHhq1nK4fDwvyD
+HHVJLZf15I336SvzS71yYgQ+0cGBmJ
+wyjwzPkf+/viJy8nY0UKpCuMEx49sV
+F4VZzsKR4S6cBqRC9/fnBTUF5lghyb
+YYfYb5qyV/S1RSoNpAasN4QMP0GzVd
+V04A
+
 ----- Pre-Restart -----
 Postcard, Compressed, Box<[u8]> for crypto, 2 push auth
 804

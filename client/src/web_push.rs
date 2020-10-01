@@ -4,14 +4,14 @@ use p256::ecdsa::{VerifyKey, signature::Verifier};
 use url::Url;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct PushInfo {
 	pub endpoint: String,
 	pub auth: [u8; 16],
 	pub public_key: crypto::PublicKey
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct AuthToken {
 	pub subscriber: String,
 	pub expiration: u32,

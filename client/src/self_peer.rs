@@ -36,27 +36,6 @@ pub struct SelfPeer {
 }
 
 impl SelfPeer {
-	// fn create_auth(&self, expiration: u32, subscriber: Option<&str>, rng: impl CryptoRng + RngCore) -> web_push::AuthToken {
-	// 	let self_data = self.persist.as_ref();
-	// 	if let Some(push_info) = &self_data.info {
-	// 		let subscriber_str = subscriber.unwrap_or("mailto:no-reply@example.com");
-	// 		let audience = Url::parse(&push_info.endpoint).unwrap().origin().unicode_serialization();
-	// 		let body = format!(r#"{{"aud":"{}","exp":{},"sub":"{}"}}"#, audience, expiration, subscriber_str);
-	// 		let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
-
-	// 		let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
-	// 		let signer = SigningKey::from(self_data.secret_key.as_ref());
-	// 		let signature = signer.sign_with_rng(rng, buffer.as_bytes()).into();
-			
-	// 		web_push::AuthToken {
-	// 			expiration,
-	// 			subscriber: subscriber_str.into(),
-	// 			signature
-	// 		}
-	// 	} else {
-	// 		panic!("Can't create an auth without push_info being set!")
-	// 	}
-	// }
 	fn pk_magnitude(&self) -> p256::Scalar {
 		p256::Scalar::from_bytes_reduced(p256::EncodedPoint::from_secret_key(self.persist.secret_key.as_ref(), true).x())
 	}
@@ -94,6 +73,45 @@ impl SelfPeer {
 				endpoint
 			})
 		}).to_js_error()
+	}
+	pub fn get_introduction(&self) -> Result<String, JsValue> {
+		fn create_auth(info: &web_push::PushInfo, secret_key: &crypto::SecretKey, from_now: usize, subscriber: Option<&str>) -> Result<web_push::AuthToken, anyhow::Error> {
+			let mut rng = get_rng();
+			let subscriber_str = subscriber.unwrap_or("https://github.com/evan-brass/web3.0-test");
+			let endpoint = Url::parse(&info.endpoint).context("URL parsing for the endpoint failed")?;
+			let audience = endpoint.origin().unicode_serialization();
+			let expiration = js_sys::Date::now() as usize / 1000 + from_now * 12 * 60;
+			let body = format!(r#"{{"aud":"{}","exp":{},"sub":"{}"}}"#, audience, expiration, subscriber_str);
+			let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
+
+			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
+			let signer = SigningKey::from(secret_key.as_ref());
+			let signature = signer.sign_with_rng(&mut rng, buffer.as_bytes()).into();
+			
+			Ok(web_push::AuthToken {
+				expiration: expiration as u32,
+				subscriber: subscriber_str.into(),
+				signature
+			})
+		}
+		let rng = get_rng();
+		if let Some(ref push_info) = self.persist.info {
+			let auth = create_auth(
+				push_info, 
+				&self.persist.secret_key, 
+				1, 
+				self.persist.subscriber.as_ref().map(|s|s.as_str())
+			).to_js_error()?;
+			let message = signaling::SignalingFormat::Introduction(push_info.clone(), auth);
+			let mut buffer = Vec::try_from(&message).to_js_error()?;
+
+			let rec_sig = crypto::RecoverableSignature::try_sign_recoverable(&self.persist.secret_key, &buffer).to_js_error()?;
+			buffer.extend_from_slice(&rec_sig.to_bytes());
+
+			Ok(base64::encode_config(&buffer, base64::STANDARD_NO_PAD))
+		} else {
+			Err(anyhow!("Can't create an introduction if self doesn't have push info.")).to_js_error()
+		}
 	}
 }
 

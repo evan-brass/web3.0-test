@@ -318,6 +318,22 @@ export class SelfPeer {
         var len2 = WASM_VECTOR_LEN;
         wasm.selfpeer_set_push_info(this.ptr, ptr0, len0, ptr1, len1, ptr2, len2);
     }
+    /**
+    * @returns {string}
+    */
+    get_introduction() {
+        try {
+            const retptr = wasm.__wbindgen_export_0.value - 16;
+            wasm.__wbindgen_export_0.value = retptr;
+            wasm.selfpeer_get_introduction(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_export_0.value += 16;
+            wasm.__wbindgen_free(r0, r1);
+        }
+    }
 }
 
 async function load(module, imports) {
@@ -425,6 +441,10 @@ async function init(input) {
         var ret = getObject(arg0).call(getObject(arg1));
         return addHeapObject(ret);
     });
+    imports.wbg.__wbg_now_4de5b53a19e45567 = function() {
+        var ret = Date.now();
+        return ret;
+    };
     imports.wbg.__wbg_globalThis_b9277fc37e201fe5 = handleError(function() {
         var ret = globalThis.globalThis;
         return addHeapObject(ret);
