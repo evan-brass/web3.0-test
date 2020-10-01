@@ -18,10 +18,12 @@ use p256::{
 		},
 	},
 	elliptic_curve::{
+		FromDigest,
 		weierstrass::point::Decompress,
 		ff::PrimeField
 	}
 };
+use sha2::Digest;
 use ecdsa;
 use anyhow::{Context, anyhow};
 
@@ -196,11 +198,16 @@ impl RecoverableSignature {
             Err(anyhow!("Failed to decompress R point."))
         }
 	}
-	pub fn from_bytes(bytes: &mut [u8]) -> Result<Self, anyhow::Error> {
+	pub fn recover_from_slice(&self, bytes: &[u8]) -> Result<PublicKey, anyhow::Error> {
+		self.recover(&Scalar::from_digest(sha2::Sha256::new().chain(bytes)))
+	}
+	pub fn from_bytes(signature_bytes: &[u8]) -> Result<Self, anyhow::Error> {
+		let mut bytes = [0; 64];
+		bytes.copy_from_slice(signature_bytes);
 		let prev = bytes[32];
 		let is_odd = prev >= 0b10000000;
 		bytes[32] = prev & 0b01111111;
-		let sig = p256::ecdsa::Signature::from_bytes(bytes).map_err(|_| anyhow!("Signature creation failed."))?;
+		let sig = p256::ecdsa::Signature::from_bytes(&bytes).map_err(|_| anyhow!("Signature creation failed."))?;
 		bytes[32] = prev;
 		Ok(Self::from((sig, is_odd)))
 	}

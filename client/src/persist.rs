@@ -3,6 +3,7 @@ use web_sys;
 use anyhow::{ Context, anyhow };
 use bincode;
 use base64;
+use std::ops::Deref;
 
 #[derive(Debug)]
 pub struct Persist<T> {
@@ -10,7 +11,7 @@ pub struct Persist<T> {
 	value: T
 }
 
-fn get_local_storage() -> Result<web_sys::Storage, anyhow::Error> {
+pub fn get_local_storage() -> Result<web_sys::Storage, anyhow::Error> {
 	let window = web_sys::window().context("No Window Object.")?;
 	window.local_storage().map_err(|_| anyhow!("Error retreiving local storage."))?.context("Tried to get local storage but got None.")
 }
@@ -58,6 +59,12 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 }
 impl<T> AsRef<T> for Persist<T> {
 	fn as_ref(&self) -> &T {
+		&self.value
+	}
+}
+impl<T> Deref for Persist<T> {
+	type Target = T;
+	fn deref(&self) -> &Self::Target {
 		&self.value
 	}
 }

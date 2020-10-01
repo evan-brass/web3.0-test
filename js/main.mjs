@@ -1,4 +1,4 @@
-import init, { SelfPeer, PeerManager } from '../../wasm/debug/client.js';
+import init, { SelfPeer, Peer } from '../../wasm/debug/client.js';
 
 async function run() {
 	await init();
@@ -8,7 +8,7 @@ async function run() {
 	console.log("Self Peer: ", self);
 	const self_pk = self.get_public_key();
 	console.log("Self Public Key: ", self_pk);
-	console.log("Current Auth Subscriber: ", self.subscriber);
+	// console.log("Current Auth Subscriber: ", self.subscriber);
 
 	// Register our service worker which will pass push message on to us.
 	let sw_reg = await navigator.serviceWorker.getRegistration();
@@ -74,7 +74,10 @@ async function run() {
 		}
 	}
 
-	const introduction = self.get_intro();
-	console.log(`Introduction(${introduction.length}): `, introduction);
+	// const introduction = self.get_intro();
+	// console.log(`Introduction(${introduction.length}): `, introduction);
+
+	let peers = Peer.get_all_peers();
+	console.log("Peers: ", peers);
 }
 run();
