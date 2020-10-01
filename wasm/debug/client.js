@@ -247,6 +247,13 @@ export class Peer {
         var ret = wasm.peer_new_from_signaling_message(ptr0);
         return Peer.__wrap(ret);
     }
+    /**
+    */
+    delete() {
+        var ptr = this.ptr;
+        this.ptr = 0;
+        wasm.peer_delete(ptr);
+    }
 }
 /**
 */
@@ -310,22 +317,6 @@ export class SelfPeer {
         var ptr2 = passStringToWasm0(endpoint, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len2 = WASM_VECTOR_LEN;
         wasm.selfpeer_set_push_info(this.ptr, ptr0, len0, ptr1, len1, ptr2, len2);
-    }
-    /**
-    * @returns {string}
-    */
-    get_intro() {
-        try {
-            const retptr = wasm.__wbindgen_export_0.value - 16;
-            wasm.__wbindgen_export_0.value = retptr;
-            wasm.selfpeer_get_intro(retptr, this.ptr);
-            var r0 = getInt32Memory0()[retptr / 4 + 0];
-            var r1 = getInt32Memory0()[retptr / 4 + 1];
-            return getStringFromWasm0(r0, r1);
-        } finally {
-            wasm.__wbindgen_export_0.value += 16;
-            wasm.__wbindgen_free(r0, r1);
-        }
     }
 }
 
@@ -397,6 +388,9 @@ async function init(input) {
         var len0 = WASM_VECTOR_LEN;
         getInt32Memory0()[arg0 / 4 + 1] = len0;
         getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+    });
+    imports.wbg.__wbg_removeItem_a1b70eaf0cbc47b9 = handleError(function(arg0, arg1, arg2) {
+        getObject(arg0).removeItem(getStringFromWasm0(arg1, arg2));
     });
     imports.wbg.__wbg_setItem_71df4161bb87d575 = handleError(function(arg0, arg1, arg2, arg3, arg4) {
         getObject(arg0).setItem(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
