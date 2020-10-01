@@ -18,7 +18,7 @@ pub struct AuthToken {
 	pub signature: crypto::Signature
 }
 impl AuthToken {
-	fn fill_and_check(&self, info: &PushInfo, expected_signer: &crypto::PublicKey) -> Result<String, anyhow::Error> {
+	pub fn fill_and_check(&self, info: &PushInfo, expected_signer: &crypto::PublicKey) -> Result<String, anyhow::Error> {
 		let audience = Url::parse(&info.endpoint).context("Endpoint URL parsing failed.")?.origin().unicode_serialization();
 		let body = format!("{{\"aud\":\"{}\",\"exp\":{},\"sub\":\"{}\"}}", audience, self.expiration, self.subscriber);
 		let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);

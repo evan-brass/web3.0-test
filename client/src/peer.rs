@@ -1,18 +1,7 @@
 use wasm_bindgen::prelude::*;
-use anyhow::{ Context, anyhow };
-use url::Url;
-use base64;
-use p256::{
-	ecdsa::{
-		VerifyKey,
-		signature::Verifier,
-	}
-};
-use std::{
-	convert::TryFrom,
-};
+use anyhow::anyhow;
 use serde::{ 
-	Serialize, 
+	Serialize,
 	Deserialize,
 	ser::Serializer,
 	de::Deserializer
@@ -85,8 +74,8 @@ impl Peer {
 	pub fn set_ice_handler(&mut self, callback: JsValue) {
 		self.ice_handler = callback;
 	}
-	pub fn apply_signaling_message(&mut self, message: signaling::ParsedMessage) {
-
+	pub fn apply_signaling_message(&mut self, _message: signaling::ParsedMessage) {
+		todo!("Implement message handling")
 	}
 	pub fn new_from_signaling_message(message: signaling::ParsedMessage) -> Result<Peer, JsValue> {
 		let mut new_peer = Peer::new(message.public_key.clone()).to_js_error()?;

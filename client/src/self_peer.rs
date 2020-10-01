@@ -12,7 +12,6 @@ use std::{
 	convert::TryFrom,
 	fmt::Debug
 };
-use rand::{ CryptoRng, RngCore };
 use serde::{ Serialize, Deserialize };
 
 use shared::*;
@@ -94,7 +93,6 @@ impl SelfPeer {
 				signature
 			})
 		}
-		let rng = get_rng();
 		if let Some(ref push_info) = self.persist.info {
 			let auth = create_auth(
 				push_info, 

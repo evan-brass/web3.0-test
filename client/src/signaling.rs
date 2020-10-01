@@ -3,17 +3,13 @@ use std::{
 	convert::TryFrom,
 	io::{ Write, Read }
 };
-use byteorder::{ByteOrder, WriteBytesExt, ReadBytesExt, BigEndian};
+use byteorder::{ByteOrder, WriteBytesExt, BigEndian};
 use flate2::{
 	Compression,
 	write::DeflateEncoder,
 	read::DeflateDecoder
 };
 use anyhow::{ Context, anyhow };
-use serde::{
-	Serialize,
-	Deserialize
-};
 use wasm_bindgen::prelude::*;
 
 use shared::*;
@@ -69,7 +65,7 @@ pub enum SignalingFormat {
 	JustAuth(u32, String, Vec<crypto::Signature>)
 }
 impl SignalingFormat {
-	pub fn merge(messages: &mut Vec<SignalingFormat>) {
+	pub fn merge(_messages: &mut Vec<SignalingFormat>) {
 		todo!("Join SDP + ICE messages together.")
 	}
 }
@@ -109,7 +105,7 @@ impl TryFrom<&SignalingFormat> for Vec<u8> {
 					compressor.write_u8(0).context("Compression Error")?;
 				}
 			},
-			SignalingFormat::JustAuth(exp, sub, sigs) => {
+			SignalingFormat::JustAuth(_exp, _sub, _sigs) => {
 				ret.push(5);
 				unimplemented!("Having two variable length things is hard: subscriber string length and variable number of signatures.")
 			}
