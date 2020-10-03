@@ -6,6 +6,8 @@ use serde::{
 	ser::Serializer,
 	de::Deserializer
 };
+use signaling::SignalingFormat;
+use js_sys::Function;
 
 use shared::*;
 
@@ -74,12 +76,47 @@ impl Peer {
 	pub fn set_ice_handler(&mut self, callback: JsValue) {
 		self.ice_handler = callback;
 	}
-	pub fn apply_signaling_message(&mut self, _message: signaling::ParsedMessage) {
-		todo!("Implement message handling")
+	fn handle_ices(&self, ices: Vec<String>) -> Result<(), JsValue> {
+		if self.ice_handler.is_function() {
+			let ice_handler = Function::from(self.ice_handler.clone());
+			for ice in ices {
+				ice_handler.call1(&JsValue::null(), &JsValue::from(ice))?;
+			}
+		}
+		Ok(())
+	}
+	pub fn apply_signaling_message(&mut self, message: signaling::ParsedMessage) -> Result<(), JsValue> {
+		match message.message {
+			SignalingFormat::Introduction(info, auth) => {
+				self.persist.make_change(|persist| {
+					persist.info = Some(info);
+					persist.authorizations.push(auth);
+				}).to_js_error()?;
+			},
+			SignalingFormat::SDPAnswer(sdp, ices) => {
+				if self.sdp_handler.is_function() {
+					Function::from(self.sdp_handler.clone()).call2(&JsValue::null(), &JsValue::from("offer"), &JsValue::from(sdp))?;
+				}
+				self.handle_ices(ices)?;
+			},
+			SignalingFormat::SDPOffer(sdp, ices) => {
+				if self.sdp_handler.is_function() {
+					Function::from(self.sdp_handler.clone()).call2(&JsValue::null(), &JsValue::from("answer"), &JsValue::from(sdp))?;
+				}
+				self.handle_ices(ices)?;
+			},
+			SignalingFormat::JustIce(ices) => {
+				self.handle_ices(ices)?;
+			},
+			SignalingFormat::JustAuth(..) => {
+				todo!("Implement just-auth message handling")
+			}
+		}
+		Ok(())
 	}
 	pub fn new_from_signaling_message(message: signaling::ParsedMessage) -> Result<Peer, JsValue> {
 		let mut new_peer = Peer::new(message.public_key.clone()).to_js_error()?;
-		new_peer.apply_signaling_message(message);
+		new_peer.apply_signaling_message(message)?;
 		Ok(new_peer)
 	}
 	pub fn delete(self) -> Result<(), JsValue> {

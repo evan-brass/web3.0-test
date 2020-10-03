@@ -1,4 +1,5 @@
-import init, { SelfPeer, Peer } from '../../wasm/debug/client.js';
+import init, { SelfPeer, Peer, parse_message } from '../../wasm/debug/client.js';
+import { html, mount, on, ref } from '../extern/js-min/src/template-v2/templating.mjs';
 
 async function run() {
 	await init();
@@ -74,15 +75,75 @@ async function run() {
 		}
 	}
 
-	const introduction = self.get_introduction();
-	console.log(`Introduction(${introduction.length}): `, introduction);
-
 	let peers = Peer.get_all_peers();
 	console.log("Peers: ", peers);
-	// TODO: Put the peers in a map
-	// Show a nice UI for them
+
+	const ui = {};
+	mount(html`<aside>
+		<p>Peers:
+			<ul ${ref(ui, 'peer_list')}></ul>
+		</p>
+		<hr>
+		<p>
+			Add a friend:
+			<input ${ref(ui, 'add_source')} type="text">
+			<button ${on('click', () => {
+				try {
+					handle_signaling_message(ui.add_source.value)
+				} catch (e) {
+					ui.add_source.value = e.toString();
+				}
+			})}>Add</button>
+		</p>
+		<hr>
+		<p>
+			Share your introduction:
+			<pre ${ref(ui, 'intro_destination')}></pre>
+			<button ${on('click', () => {
+				ui.intro_destination.innerText = self.get_introduction();
+			})}>Generate</button>
+		</p>
+	</aside>`);
+	function add_peer(peer) {
+		let unmount = mount(html`
+			<li>
+				${peer.peer_id()} - <button ${on('click', () => {
+					peer.delete();
+					unmount();
+				})}>Remove</button>
+			</li>
+		`, ui.peer_list);
+	}
+
+	// Make a map of the peers by tag so that we can find them quickly and handle signaling messages:
+	let peer_map = new Map();
+	for (const peer of peers) {
+		peer_map.set(peer.peer_id(), peer);
+
+		add_peer(peer);
+	}
+	let push_messages = new BroadcastChannel('push-messages');
+	function handle_signaling_message(text) {
+		let parsed = parse_message(text);
+		let tag = parsed.peer_id();
+		let peer = peer_map.get(tag);
+		if (peer) {
+			peer.apply_signaling_message(parsed);
+		} else {
+			peer = Peer.new_from_signaling_message(parsed);
+			peer_map.set(tag, peer);
+
+			add_peer(peer);
+		}
+	}
+	push_messages.onmessage = event => {
+		handle_signaling_message(event.data);
+	};
+	push_messages.onmessageerror = console.warn;
+
+	// Show a nice UI for the peers
 	// Show an apply intro and create intro UI
-	// Parse the url fragment for an introduction
+	// Parse the url fragment for an signaling message
 	// Build a little chat application
 }
 run();

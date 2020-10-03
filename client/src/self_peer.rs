@@ -106,7 +106,7 @@ impl SelfPeer {
 			let rec_sig = crypto::RecoverableSignature::try_sign_recoverable(&self.persist.secret_key, &buffer).to_js_error()?;
 			buffer.extend_from_slice(&rec_sig.to_bytes());
 
-			Ok(base64::encode_config(&buffer, base64::STANDARD_NO_PAD))
+			Ok(base64::encode_config(&buffer, base64::URL_SAFE_NO_PAD))
 		} else {
 			Err(anyhow!("Can't create an introduction if self doesn't have push info.")).to_js_error()
 		}

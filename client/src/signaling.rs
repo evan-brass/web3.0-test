@@ -27,6 +27,7 @@ pub struct ParsedMessage {
 	#[wasm_bindgen(skip)]
 	pub message: SignalingFormat
 }
+#[wasm_bindgen]
 impl ParsedMessage {
 	pub fn peer_id(&self) -> String {
 		self.peer_id.clone()
@@ -34,17 +35,17 @@ impl ParsedMessage {
 }
 
 #[wasm_bindgen]
-pub fn parse_message(message: &[u8]) -> Result<ParsedMessage, JsValue> {
+pub fn parse_message(message: &str) -> Result<ParsedMessage, JsValue> {
 	let message = base64::decode_config(
 		message, 
-		base64::STANDARD_NO_PAD
+		base64::URL_SAFE_NO_PAD
 	).map_err(|_| anyhow!("Message not Base64 encoded")).to_js_error()?;
 	
 	if message.len() < 65 {
 		return Err(anyhow!("Message too short - Not enough for a recoverable signature + header")).to_js_error();
 	}
 
-	let (signature, message) = message.split_at(64);
+	let (message, signature) = message.split_at(message.len() - 64);
 	let signature = crypto::RecoverableSignature::from_bytes(signature).to_js_error()?;
 	let public_key = signature.recover_from_slice(message).to_js_error()?;
 	let peer_id = peer_tag(&public_key);

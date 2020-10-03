@@ -4,12 +4,23 @@ use rand::{
 };
 use anyhow::{ Context, anyhow };
 
-fn get_crypto_seed() -> Result<[u8; 32], anyhow::Error> {
-	let mut seed = [0; 32];
+fn fill_slice_with_random(dest: &mut [u8]) -> Result<(), anyhow::Error> {
 	let window = web_sys::window().context("No Window")?;
 	let crypto = window.crypto().map_err(|_| anyhow!("Failed to get crypto off of window."))?;
-	crypto.get_random_values_with_u8_array(&mut seed).map_err(|_| anyhow!("Failed to get random bytes."))?;
+	crypto.get_random_values_with_u8_array(dest).map_err(|_| anyhow!("Failed to get random bytes."))?;
+	Ok(())
+}
+
+fn get_crypto_seed() -> Result<[u8; 32], anyhow::Error> {
+	let mut seed = [0; 32];
+	fill_slice_with_random(&mut seed)?;
 	Ok(seed)
+}
+
+pub fn get_salt() -> Result<[u8; 16], anyhow::Error> {
+	let mut salt = [0; 16];
+	fill_slice_with_random(&mut salt)?;
+	Ok(salt)
 }
 
 pub fn get_rng() -> StdRng {

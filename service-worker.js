@@ -4,7 +4,9 @@ self.oninstall = event => {
 		console.log("Service Worker installed");
 	})());
 };
+const push_broadcast = new BroadcastChannel("push-messages");
 self.onpush = event => {
 	console.log("Received a push message: ", event);
-	// TODO: Broadcast this push on a named broadcast channel so that the clients can update their peers.
+	let data = event.data.text();
+	push_broadcast.postMessage(data);
 };
