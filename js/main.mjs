@@ -104,10 +104,37 @@ async function run() {
 			})}>Generate</button>
 		</p>
 	</aside>`);
-	function add_peer(peer) {
+	async function add_peer(peer) {
+		async function try_push(data) {
+			let request, cors_anywhere_request;
+			try {
+				request = peer.prepare_raw(data);
+				cors_anywhere_request = new Request('https://cors-anywhere.herokuapp.com/' + request.url, {
+					method: request.method,
+					headers: request.headers,
+					body: request.body,
+					mode: request.mode,
+					cache: request.cache
+				});
+			} catch(e) { console.error(e) }
+			if (request) {
+				try {
+					await fetch(request);
+					return true;
+				} catch {
+					await fetch(cors_anywhere_request); // If this fails, let the error bubble
+					return true;
+				}
+			}
+			return false;
+		}
+		// On startup, send all peers our intro: (TODO: Don't do this every time the page loads - I just want to check web push)
+		// const reachable = await try_push(self.get_introduction());
+		const reachable = await try_push("Hello World!");
+		
 		let unmount = mount(html`
 			<li>
-				${peer.peer_id()} - <button ${on('click', () => {
+				${peer.peer_id()} - ${reachable ? "Reachable" : "Unreachable"} - <button ${on('click', () => {
 					peer.delete();
 					unmount();
 				})}>Remove</button>

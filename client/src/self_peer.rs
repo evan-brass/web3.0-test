@@ -79,13 +79,16 @@ impl SelfPeer {
 			let subscriber_str = subscriber.unwrap_or("https://github.com/evan-brass/web3.0-test");
 			let endpoint = Url::parse(&info.endpoint).context("URL parsing for the endpoint failed")?;
 			let audience = endpoint.origin().unicode_serialization();
-			let expiration = js_sys::Date::now() as usize / 1000 + from_now * 12 * 60;
+			let now = (js_sys::Date::now() / 1000.0) as usize;
+			let expiration = now + from_now * 12 * 60;
 			let body = format!(r#"{{"aud":"{}","exp":{},"sub":"{}"}}"#, audience, expiration, subscriber_str);
 			let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
 
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 			let signer = SigningKey::from(secret_key.as_ref());
-			let signature = signer.sign_with_rng(&mut rng, buffer.as_bytes()).into();
+			let signature: crypto::Signature = signer.sign_with_rng(&mut rng, buffer.as_bytes()).into();
+
+			println!("{}.{}", buffer, base64::encode_config(signature.as_ref(), base64::URL_SAFE_NO_PAD));
 			
 			Ok(web_push::AuthToken {
 				expiration: expiration as u32,

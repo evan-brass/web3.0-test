@@ -16,6 +16,7 @@ use super::web_push;
 use super::persist::Persist;
 use super::crypto;
 use super::persist;
+use super::self_peer::SelfPeer;
 
 pub fn peer_tag(public_key: &crypto::PublicKey) -> String {
 	base64::encode_config(public_key.compress().as_bytes(), base64::URL_SAFE_NO_PAD)
@@ -33,7 +34,8 @@ struct PeerPersist {
 pub struct Peer {
 	persist: Persist<PeerPersist>,
 	sdp_handler: JsValue,
-	ice_handler: JsValue
+	ice_handler: JsValue,
+	signaling_queue: Option<SignalingFormat>
 }
 impl Serialize for Peer {
 	fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -85,6 +87,59 @@ impl Peer {
 		}
 		Ok(())
 	}
+	fn find_auth(&self) -> Option<&web_push::AuthToken> {
+		self.persist.info.as_ref().and_then(|info| {
+			self.persist.authorizations.iter().find(|auth| {
+				auth.fill_and_check(info, &self.persist.public_key).is_ok()
+			})
+		})
+	}
+	pub fn prepare_raw(&self, data: String) -> Result<web_sys::Request, JsValue> {
+		let auth = self.find_auth().ok_or(anyhow!("Peer doesn't have a valid push authorization")).to_js_error()?;
+		web_push::push(
+			self.persist.info.as_ref()
+				.ok_or(anyhow!("Peer doesn't have push info"))
+				.to_js_error()?,
+			&self.persist.public_key,
+			auth,
+			data.as_bytes(),
+			None,
+			0
+		).to_js_error()
+	}
+	pub fn prepare_introduction(&self, self_peer: &SelfPeer) -> Result<web_sys::Request, JsValue> {
+		let auth = self.find_auth().ok_or(anyhow!("Peer doesn't have a valid push authorization")).to_js_error()?;
+		web_push::push(
+			self.persist.info.as_ref()
+				.ok_or(anyhow!("Peer doesn't have push info"))
+				.to_js_error()?,
+			&self.persist.public_key,
+			auth,
+			self_peer.get_introduction()?.as_bytes(),
+			None,
+			0
+		).to_js_error()
+	}
+	// pub fn queue_sdp_offer(&mut self, sdp: String) -> Result<Option<web_sys::Request>, JsValue> {
+	// 	let ret;
+	// 	if let Some(ref mut msg) = self.signaling_queue {
+	// 		match msg {
+	// 			SignalingFormat::Introduction(..) => {
+	// 				ret = Some(web_push::push(
+	// 					&self.persist.info, 
+	// 					&self.persist.public_key, 
+	// 					auth, // TODO: Pick a valid push authorization
+	// 					From::from(msg)?,
+	// 					None, 
+	// 					0
+	// 				));
+	// 			}
+	// 		}
+	// 	} else {
+
+	// 	}
+	// 	Ok(ret)
+	// }
 	pub fn apply_signaling_message(&mut self, message: signaling::ParsedMessage) -> Result<(), JsValue> {
 		match message.message {
 			SignalingFormat::Introduction(info, auth) => {
@@ -137,14 +192,16 @@ impl Peer {
 				}
 			)?,
 			sdp_handler: JsValue::null(),
-			ice_handler: JsValue::null()
+			ice_handler: JsValue::null(),
+			signaling_queue: None
 		})
 	}
 	fn new_from_key_unchecked(key: String) -> Result<Self, anyhow::Error> {
 		Ok(Self {
 			persist: Persist::new(&key, || unreachable!("new_from_key_unchecked failed because the key didn't exist."))?,
 			sdp_handler: JsValue::null(),
-			ice_handler: JsValue::null()
+			ice_handler: JsValue::null(),
+			signaling_queue: None
 		})
 	}
 	pub fn pk_magnitude(&self) -> p256::Scalar {

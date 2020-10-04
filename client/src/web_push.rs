@@ -31,8 +31,9 @@ pub struct AuthToken {
 impl AuthToken {
 	pub fn fill_and_check(&self, info: &PushInfo, expected_signer: &crypto::PublicKey) -> Result<String, anyhow::Error> {
 		// verify expiration:
-		let now = js_sys::Date::now() as u32 / 1000;
-		if self.expiration < now || self.expiration > now + 24 * 60 {
+		let now = (js_sys::Date::now() / 1000.0) as usize;
+		let exp = self.expiration as usize;
+		if exp < now || exp > now + 24 * 60 {
 			return Err(anyhow!("Not within the auth's valid window"));
 		}
 
@@ -114,6 +115,8 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 	let encrypted = Aes128Gcm::new(&encryption_key.into())
 		.encrypt(&nonce.into(), data.as_ref())
 		.map_err(|_| anyhow!("Encryption failed"))?;
+	println!("{:?}", encrypted);
+	println!("{:?}", data);
 
 	// Headers:
 	let headers = Headers::new()
@@ -125,6 +128,9 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 		base64::encode_config(ephemeral_key.public_key().as_bytes(), base64::URL_SAFE_NO_PAD),
 		base64::encode_config(application_server_pk.as_bytes(), base64::URL_SAFE_NO_PAD)
 	)).map_err(|_| anyhow!("Setting header failed: Crypto-Key"))?;
+	println!("{:?}", ephemeral_key.public_key().as_bytes());
+	println!("{:?}", application_server_pk.as_bytes());
+	
 	headers.append("Encryption", &format!("salt={}", base64::encode_config(&salt, base64::URL_SAFE_NO_PAD)))
 		.map_err(|_| anyhow!("Setting header failed: Encryption"))?;
 	headers.append("TTL", &ttl.to_string())
@@ -147,34 +153,3 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 
 	Request::new_with_str_and_init(&recipient.endpoint, &init).map_err(|_| anyhow!("Failed to create Request object"))
 }
-/*
-async function push(peer, contents, enforce_4k = true, ttl = 0, pad_mod = 0) {
-
-	// Create a fetch request to send to the push server
-	const headers = new Headers();
-	headers.append('Authorization', `WebPush ${jwt}`);
-	headers.append('Crypto-Key', `dh=${message_dh_pub_key_encoded}; p256ecdsa=${peer_as_pub_key_encoded}`);
-	headers.append('Encryption', `salt=${salt_encoded}`);
-	headers.append('TTL', ttl.toString());
-	headers.append('Content-Length', encrypted.byteLength.toString());
-	headers.append('Content-Type', 'application/octet-stream');
-	headers.append('Content-Encoding', 'aesgcm');
-
-	const options = {
-		method: 'POST',
-		headers,
-		body: encrypted,
-		cache: 'no-store',
-		mode: 'cors'
-	};
-	try {
-		await fetch(peer.push_info.endpoint, options);
-	} catch {
-		// HACK: Since Google Cloud Messenger doesn't provide CORS I'm using cors-anywhere
-		// Try again using CORS anywhere:
-		await fetch('https://cors-anywhere.herokuapp.com/' + peer.push_info.endpoint, options);
-
-		// TODO: Handle the subscription being gone.
-	}
-}
-*/

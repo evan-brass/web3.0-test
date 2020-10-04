@@ -7,6 +7,10 @@ self.oninstall = event => {
 const push_broadcast = new BroadcastChannel("push-messages");
 self.onpush = event => {
 	console.log("Received a push message: ", event);
-	let data = event.data.text();
-	push_broadcast.postMessage(data);
+	if (event.data) {
+		let data = event.data.text();
+		push_broadcast.postMessage(data);
+	} else {
+		console.warn("Received a push message without a data property.")
+	}
 };
