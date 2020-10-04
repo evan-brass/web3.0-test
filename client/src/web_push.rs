@@ -5,7 +5,11 @@ use serde::{Serialize, Deserialize};
 use web_sys;
 use byteorder::{WriteBytesExt, BigEndian, LittleEndian};
 use js_sys::Uint8Array;
-use p256::ecdh::EphemeralSecret;
+use p256::{
+	SecretKey,
+	EncodedPoint,
+	ecdh::EphemeralSecret
+};
 use hkdf::Hkdf;
 use aes_gcm::Aes128Gcm;
 use aes_gcm::aead::{Aead, NewAead};
@@ -13,7 +17,6 @@ use web_sys::{Request, RequestInit, RequestCache, RequestMode, Headers};
 
 use super::crypto;
 use super::rand::{get_rng, get_salt};
-
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct PushInfo {
@@ -54,14 +57,31 @@ impl AuthToken {
 	}
 }
 fn make_info(content_type: &str, client_public: &crypto::PublicKey, server_public: &EphemeralSecret) -> Result<Vec<u8>, anyhow::Error> {
-	let mut info = format!("Content Encoding: {}\0P-256\0", content_type).into_bytes();
-	info.write_u16::<BigEndian>(client_public.as_bytes().len() as u16).context("Failed to write client_public length")?;
-	info.extend_from_slice(client_public.as_bytes());
-	info.write_u16::<BigEndian>(server_public.public_key().as_bytes().len() as u16).context("Failed to write server_public length")?;
-	info.extend_from_slice(server_public.public_key().as_bytes());
+	let client_decompressed: EncodedPoint = Option::from(client_public.decompress()).ok_or(anyhow!("Failed to decompress the client public key"))?;
+	let cp_encoded = client_decompressed.as_bytes();
+	let sp_encoded: EncodedPoint = Option::from(server_public.public_key().decompress()).ok_or(anyhow!("Failed to decompress the server_public key"))?;
+	let sp_encoded = sp_encoded.as_bytes();
+	// println!("{:?} {:?}", cp_encoded, sp_encoded);
+	let mut info = Vec::new();
+	info.extend_from_slice("Content-Encoding: ".as_bytes());
+	info.extend_from_slice(content_type.as_bytes());
+	info.push(0);
+	info.extend_from_slice("P-256".as_bytes());
+	info.push(0);
+	info.write_u16::<BigEndian>(cp_encoded.len() as u16).context("Failed to write client_public length")?;
+	info.extend_from_slice(cp_encoded);
+	info.write_u16::<BigEndian>(sp_encoded.len() as u16).context("Failed to write server_public length")?;
+	info.extend_from_slice(sp_encoded);
 	Ok(info)
 }
 pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, auth: &AuthToken, message: &[u8], pad_mod: Option<usize>, ttl: usize) -> Result<web_sys::Request, anyhow::Error> {
+	println!("Push Public Key: {:?}", recipient.public_key.as_bytes());
+	println!("Push Auth: {:?}", recipient.auth);
+
+	fn b(buff: &[u8]) -> String {
+		base64::encode_config(buff, base64::URL_SAFE_NO_PAD)
+	}
+
 	// Padding:
 	let pad_len = pad_mod.map_or(0, |pad_mod| {
 		let remainder = message.len() % pad_mod;
@@ -87,36 +107,55 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 	let jwt = auth.fill_and_check(recipient, application_server_pk)?;
 
 	// ECDH:
-	let ephemeral_key = EphemeralSecret::random(get_rng());
+	let ephemeral_key = SecretKey::random(get_rng());
+	println!("Ephemeral Secret Private: {:?}", ephemeral_key.to_bytes());
+	println!("D: {:?}", b(&ephemeral_key.to_bytes()));
+	let pre_pub = EncodedPoint::from_secret_key(&ephemeral_key, false);
+	let new_ephemeral_key = unsafe { std::mem::transmute_copy::<SecretKey, EphemeralSecret>(&ephemeral_key) };
+	let post_pub = new_ephemeral_key.public_key();
+	assert_eq!(pre_pub, post_pub);
+	let ephemeral_key = new_ephemeral_key;
+	println!("Ephemeral Secret Public: {:?}", ephemeral_key.public_key().as_bytes());
+	println!("X: {}", b(ephemeral_key.public_key().x()));
+	println!("Y: {}", b(ephemeral_key.public_key().y().unwrap()));
 	let shared_secret = ephemeral_key.diffie_hellman(recipient.public_key.as_ref()).context("Diffie Helman failed")?;
+	println!("Shared Secret: {:?}", shared_secret.as_bytes());
 
 	// Salt:
 	let salt = get_salt()?;
+	println!("Salt: {:?}", salt);
 
 	// Pseudo Random Key:
 	let mut prk = [0; 32];
 	Hkdf::<sha2::Sha256>::new(Some(&recipient.auth), shared_secret.as_bytes())
 		.expand("Content-Encoding: auth\0".as_bytes(), &mut prk)
 		.map_err(|_| anyhow!("Failed to expand shared secret into PRK"))?;
+	println!("Pseudo Random Key: {:?}", prk);
 
 	// Encryption Key:
 	let mut encryption_key = [0; 16];
+	let ek_info = make_info("aesgcm", &recipient.public_key, &ephemeral_key)?;
+	println!("Encryption Key Info: {:?}", ek_info);
 	Hkdf::<sha2::Sha256>::new(Some(&salt), &prk)
-		.expand(&make_info("aes", &recipient.public_key, &ephemeral_key)?, &mut encryption_key)
+		.expand(&ek_info, &mut encryption_key)
 		.map_err(|_| anyhow!("Failed to expand PRK into encryption key"))?;
+	println!("Encryption Key: {:?}", encryption_key);
 
 	// Nonce:
 	let mut nonce = [0; 12];
+	let nonce_info = make_info("nonce", &recipient.public_key, &ephemeral_key)?;
+	println!("Nonce Info: {:?}", nonce_info);
 	Hkdf::<sha2::Sha256>::new(Some(&salt), &prk)
-		.expand(&make_info("nonce", &recipient.public_key, &ephemeral_key)?, &mut nonce)
+		.expand(&nonce_info, &mut nonce)
 		.map_err(|_| anyhow!("Failed to expand PRK into nonce"))?;
+	println!("Nonce: {:?}", nonce);
 
+	println!("Plaintext: {:?}", data);
 	// Encrypt the message:
 	let encrypted = Aes128Gcm::new(&encryption_key.into())
 		.encrypt(&nonce.into(), data.as_ref())
 		.map_err(|_| anyhow!("Encryption failed"))?;
-	println!("{:?}", encrypted);
-	println!("{:?}", data);
+	println!("Ciphertext: {:?}", encrypted);
 
 	// Headers:
 	let headers = Headers::new()
@@ -128,8 +167,8 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 		base64::encode_config(ephemeral_key.public_key().as_bytes(), base64::URL_SAFE_NO_PAD),
 		base64::encode_config(application_server_pk.as_bytes(), base64::URL_SAFE_NO_PAD)
 	)).map_err(|_| anyhow!("Setting header failed: Crypto-Key"))?;
-	println!("{:?}", ephemeral_key.public_key().as_bytes());
-	println!("{:?}", application_server_pk.as_bytes());
+	// println!("{:?}", ephemeral_key.public_key().as_bytes());
+	// println!("{:?}", application_server_pk.as_bytes());
 	
 	headers.append("Encryption", &format!("salt={}", base64::encode_config(&salt, base64::URL_SAFE_NO_PAD)))
 		.map_err(|_| anyhow!("Setting header failed: Encryption"))?;
