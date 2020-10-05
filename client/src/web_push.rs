@@ -13,7 +13,7 @@ use p256::{
 use hkdf::Hkdf;
 use aes_gcm::Aes128Gcm;
 use aes_gcm::aead::{Aead, NewAead};
-use web_sys::{Request, RequestInit, RequestCache, RequestMode, Headers};
+use web_sys::{RequestInit, RequestCache, RequestMode, Headers};
 
 use super::crypto;
 use super::rand::{get_rng, get_salt};
@@ -74,7 +74,8 @@ fn make_info(content_type: &str, client_public: &crypto::PublicKey, server_publi
 	info.extend_from_slice(sp_encoded);
 	Ok(info)
 }
-pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, auth: &AuthToken, message: &[u8], pad_mod: Option<usize>, ttl: usize) -> Result<web_sys::Request, anyhow::Error> {
+
+pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, auth: &AuthToken, message: &[u8], pad_mod: Option<usize>, ttl: usize) -> Result<(String, web_sys::RequestInit), anyhow::Error> {
 	println!("Push Public Key: {:?}", recipient.public_key.as_bytes());
 	println!("Push Auth: {:?}", recipient.auth);
 
@@ -110,6 +111,7 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 	let ephemeral_key = SecretKey::random(get_rng());
 	println!("Ephemeral Secret Private: {:?}", ephemeral_key.to_bytes());
 	println!("D: {:?}", b(&ephemeral_key.to_bytes()));
+	// TODO: Remove the mem::Transmute - it was just to debug
 	let pre_pub = EncodedPoint::from_secret_key(&ephemeral_key, false);
 	let new_ephemeral_key = unsafe { std::mem::transmute_copy::<SecretKey, EphemeralSecret>(&ephemeral_key) };
 	let post_pub = new_ephemeral_key.public_key();
@@ -158,37 +160,32 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 	println!("Ciphertext: {:?}", encrypted);
 
 	// Headers:
-	let headers = Headers::new()
-		.map_err(|_| anyhow!("Creating headers object failed"))?;
-	headers.append("Authorization", &format!("WebPush {}", jwt))
-		.map_err(|_| anyhow!("Setting header failed: Authorization"))?;
-	headers.append("Crypto-Key", &format!(
-		"dh={}; p256ecdsa={}",
-		base64::encode_config(ephemeral_key.public_key().as_bytes(), base64::URL_SAFE_NO_PAD),
-		base64::encode_config(application_server_pk.as_bytes(), base64::URL_SAFE_NO_PAD)
-	)).map_err(|_| anyhow!("Setting header failed: Crypto-Key"))?;
-	// println!("{:?}", ephemeral_key.public_key().as_bytes());
-	// println!("{:?}", application_server_pk.as_bytes());
-	
-	headers.append("Encryption", &format!("salt={}", base64::encode_config(&salt, base64::URL_SAFE_NO_PAD)))
-		.map_err(|_| anyhow!("Setting header failed: Encryption"))?;
-	headers.append("TTL", &ttl.to_string())
-		.map_err(|_| anyhow!("Setting header failed: TTL"))?;
-	headers.append("Content-Length", &encrypted.len().to_string())
-		.map_err(|_| anyhow!("Setting header failed: Content-Length"))?;
-	headers.append("Content-Type", "application/octet-stream")
-		.map_err(|_| anyhow!("Setting header failed: Content-Type"))?;
-	headers.append("Content-Encoding", "aesgcm")
-		.map_err(|_| anyhow!("Setting header failed: Content-Encoding"))?;
+	let headers = Headers::new().and_then(|headers| 
+		headers.set("authorization", &format!("WebPush {}", jwt)).and(
+			headers.set("crypto-key", &format!(
+				"dh={}; p256ecdsa={}",
+				base64::encode_config(ephemeral_key.public_key().as_bytes(), base64::URL_SAFE_NO_PAD),
+				base64::encode_config(application_server_pk.as_bytes(), base64::URL_SAFE_NO_PAD)
+			))
+		).and(
+			headers.set("encryption", &format!("salt={}", base64::encode_config(&salt, base64::URL_SAFE_NO_PAD)))
+		).and(
+			headers.set("ttl", &ttl.to_string())
+		).and(
+			headers.set("content-type", "application/octet-stream")
+		).and(
+			headers.set("content-encoding", "aesgcm")
+		).map(|_| headers)
+	).map_err(|_| anyhow!("Failed while setting headers"))?;
 
 	// Build a request
 	let mut init = RequestInit::new();
-	init.method("POST");
-	init.headers(&headers);
-	init.body(Some(&Uint8Array::from(encrypted.as_ref())));
-	init.cache(RequestCache::NoStore);
-	init.mode(RequestMode::Cors);
+	init.method("POST")
+		.headers(&headers)
+		.body(Some(&Uint8Array::from(encrypted.as_ref())))
+		.cache(RequestCache::NoStore)
+		.mode(RequestMode::Cors)
+		.referrer("no-referrer");
 
-
-	Request::new_with_str_and_init(&recipient.endpoint, &init).map_err(|_| anyhow!("Failed to create Request object"))
+	Ok((recipient.endpoint.clone(), init))
 }

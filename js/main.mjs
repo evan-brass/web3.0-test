@@ -108,14 +108,12 @@ async function run() {
 		async function try_push(data) {
 			let request, cors_anywhere_request;
 			try {
-				request = peer.prepare_raw(data);
-				cors_anywhere_request = new Request('https://cors-anywhere.herokuapp.com/' + request.url, {
-					method: request.method,
-					headers: request.headers,
-					body: request.body,
-					mode: request.mode,
-					cache: request.cache
-				});
+				const request_init = peer.prepare_raw(data);
+				request = new Request(request_init.url(), request_init.request_init());
+				cors_anywhere_request = new Request(
+					'https://cors-anywhere.herokuapp.com/' + request_init.url(),
+					request_init.request_init()
+				);
 			} catch(e) { console.error(e) }
 			if (request) {
 				try {
@@ -129,8 +127,8 @@ async function run() {
 			return false;
 		}
 		// On startup, send all peers our intro: (TODO: Don't do this every time the page loads - I just want to check web push)
-		// const reachable = await try_push(self.get_introduction());
-		const reachable = await try_push("Hello World!");
+		const reachable = await try_push(self.get_introduction());
+		// const reachable = await try_push("Hello World!");
 		
 		let unmount = mount(html`
 			<li>

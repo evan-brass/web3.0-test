@@ -245,22 +245,22 @@ export class Peer {
     }
     /**
     * @param {string} data
-    * @returns {Request}
+    * @returns {PushRequestInfo}
     */
     prepare_raw(data) {
         var ptr0 = passStringToWasm0(data, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
         var ret = wasm.peer_prepare_raw(this.ptr, ptr0, len0);
-        return takeObject(ret);
+        return PushRequestInfo.__wrap(ret);
     }
     /**
     * @param {SelfPeer} self_peer
-    * @returns {Request}
+    * @returns {PushRequestInfo}
     */
     prepare_introduction(self_peer) {
         _assertClass(self_peer, SelfPeer);
         var ret = wasm.peer_prepare_introduction(this.ptr, self_peer.ptr);
-        return takeObject(ret);
+        return PushRequestInfo.__wrap(ret);
     }
     /**
     * @param {ParsedMessage} message
@@ -288,6 +288,47 @@ export class Peer {
         var ptr = this.ptr;
         this.ptr = 0;
         wasm.peer_delete(ptr);
+    }
+}
+/**
+*/
+export class PushRequestInfo {
+
+    static __wrap(ptr) {
+        const obj = Object.create(PushRequestInfo.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_pushrequestinfo_free(ptr);
+    }
+    /**
+    * @returns {string}
+    */
+    url() {
+        try {
+            const retptr = wasm.__wbindgen_export_0.value - 16;
+            wasm.__wbindgen_export_0.value = retptr;
+            wasm.pushrequestinfo_url(retptr, this.ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_export_0.value += 16;
+            wasm.__wbindgen_free(r0, r1);
+        }
+    }
+    /**
+    * @returns {any}
+    */
+    request_init() {
+        var ret = wasm.pushrequestinfo_request_init(this.ptr);
+        return takeObject(ret);
     }
 }
 /**
@@ -438,10 +479,6 @@ async function init(input) {
         var ret = getObject(arg0).localStorage;
         return isLikeNone(ret) ? 0 : addHeapObject(ret);
     });
-    imports.wbg.__wbg_newwithstrandinit_d1de1bfcd175e38a = handleError(function(arg0, arg1, arg2) {
-        var ret = new Request(getStringFromWasm0(arg0, arg1), getObject(arg2));
-        return addHeapObject(ret);
-    });
     imports.wbg.__wbg_getItem_cb17cd47353971da = handleError(function(arg0, arg1, arg2, arg3) {
         var ret = getObject(arg1).getItem(getStringFromWasm0(arg2, arg3));
         var ptr0 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -466,8 +503,8 @@ async function init(input) {
         var ret = new Headers();
         return addHeapObject(ret);
     });
-    imports.wbg.__wbg_append_cc6fe0273163a31b = handleError(function(arg0, arg1, arg2, arg3, arg4) {
-        getObject(arg0).append(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
+    imports.wbg.__wbg_set_e0c72ee4d5eea3d5 = handleError(function(arg0, arg1, arg2, arg3, arg4) {
+        getObject(arg0).set(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
     });
     imports.wbg.__wbg_getRandomValues_1378387af91ed746 = handleError(function(arg0, arg1, arg2) {
         var ret = getObject(arg0).getRandomValues(getArrayU8FromWasm0(arg1, arg2));
@@ -478,9 +515,6 @@ async function init(input) {
     };
     imports.wbg.__wbg_error_2fcae9da7b8f8973 = function(arg0, arg1) {
         console.error(getStringFromWasm0(arg0, arg1));
-    };
-    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
-        takeObject(arg0);
     };
     imports.wbg.__wbg_error_4bb6c2a97407129a = function(arg0, arg1) {
         try {
@@ -499,6 +533,9 @@ async function init(input) {
         var len0 = WASM_VECTOR_LEN;
         getInt32Memory0()[arg0 / 4 + 1] = len0;
         getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+    };
+    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
+        takeObject(arg0);
     };
     imports.wbg.__wbg_new_e13110f81ae347cf = function() {
         var ret = new Array();

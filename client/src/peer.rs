@@ -55,6 +55,24 @@ impl<'de> Deserialize<'de> for Peer {
 		Ok(Peer::new(public_key).unwrap())
 	}
 }
+
+#[wasm_bindgen]
+pub struct PushRequestInfo(String, web_sys::RequestInit);
+#[wasm_bindgen]
+impl PushRequestInfo {
+	pub fn url(&self) -> String {
+		self.0.clone()
+	}
+	pub fn request_init(&self) -> web_sys::RequestInit {
+		self.1.clone()
+	}
+}
+impl From<(String, web_sys::RequestInit)> for PushRequestInfo {
+	fn from(data: (String, web_sys::RequestInit)) -> Self {
+		Self(data.0, data.1)
+	}
+}
+
 #[wasm_bindgen]
 impl Peer {
 	pub fn get_all_peers() -> Result<js_sys::Array, JsValue> {
@@ -94,9 +112,9 @@ impl Peer {
 			})
 		})
 	}
-	pub fn prepare_raw(&self, data: String) -> Result<web_sys::Request, JsValue> {
+	pub fn prepare_raw(&self, data: String) -> Result<PushRequestInfo, JsValue> {
 		let auth = self.find_auth().ok_or(anyhow!("Peer doesn't have a valid push authorization")).to_js_error()?;
-		web_push::push(
+		Ok(PushRequestInfo::from(web_push::push(
 			self.persist.info.as_ref()
 				.ok_or(anyhow!("Peer doesn't have push info"))
 				.to_js_error()?,
@@ -105,11 +123,11 @@ impl Peer {
 			data.as_bytes(),
 			None,
 			0
-		).to_js_error()
+		).to_js_error()?))
 	}
-	pub fn prepare_introduction(&self, self_peer: &SelfPeer) -> Result<web_sys::Request, JsValue> {
+	pub fn prepare_introduction(&self, self_peer: &SelfPeer) -> Result<PushRequestInfo, JsValue> {
 		let auth = self.find_auth().ok_or(anyhow!("Peer doesn't have a valid push authorization")).to_js_error()?;
-		web_push::push(
+		Ok(PushRequestInfo::from(web_push::push(
 			self.persist.info.as_ref()
 				.ok_or(anyhow!("Peer doesn't have push info"))
 				.to_js_error()?,
@@ -118,7 +136,7 @@ impl Peer {
 			self_peer.get_introduction()?.as_bytes(),
 			None,
 			0
-		).to_js_error()
+		).to_js_error()?))
 	}
 	// pub fn queue_sdp_offer(&mut self, sdp: String) -> Result<Option<web_sys::Request>, JsValue> {
 	// 	let ret;
