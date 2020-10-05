@@ -108,56 +108,36 @@ pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, aut
 	let jwt = auth.fill_and_check(recipient, application_server_pk)?;
 
 	// ECDH:
-	let ephemeral_key = SecretKey::random(get_rng());
-	println!("Ephemeral Secret Private: {:?}", ephemeral_key.to_bytes());
-	println!("D: {:?}", b(&ephemeral_key.to_bytes()));
-	// TODO: Remove the mem::Transmute - it was just to debug
-	let pre_pub = EncodedPoint::from_secret_key(&ephemeral_key, false);
-	let new_ephemeral_key = unsafe { std::mem::transmute_copy::<SecretKey, EphemeralSecret>(&ephemeral_key) };
-	let post_pub = new_ephemeral_key.public_key();
-	assert_eq!(pre_pub, post_pub);
-	let ephemeral_key = new_ephemeral_key;
-	println!("Ephemeral Secret Public: {:?}", ephemeral_key.public_key().as_bytes());
-	println!("X: {}", b(ephemeral_key.public_key().x()));
-	println!("Y: {}", b(ephemeral_key.public_key().y().unwrap()));
+	let ephemeral_key = EphemeralSecret::random(get_rng());
 	let shared_secret = ephemeral_key.diffie_hellman(recipient.public_key.as_ref()).context("Diffie Helman failed")?;
-	println!("Shared Secret: {:?}", shared_secret.as_bytes());
 
 	// Salt:
 	let salt = get_salt()?;
-	println!("Salt: {:?}", salt);
 
 	// Pseudo Random Key:
 	let mut prk = [0; 32];
 	Hkdf::<sha2::Sha256>::new(Some(&recipient.auth), shared_secret.as_bytes())
 		.expand("Content-Encoding: auth\0".as_bytes(), &mut prk)
 		.map_err(|_| anyhow!("Failed to expand shared secret into PRK"))?;
-	println!("Pseudo Random Key: {:?}", prk);
 
 	// Encryption Key:
 	let mut encryption_key = [0; 16];
 	let ek_info = make_info("aesgcm", &recipient.public_key, &ephemeral_key)?;
-	println!("Encryption Key Info: {:?}", ek_info);
 	Hkdf::<sha2::Sha256>::new(Some(&salt), &prk)
 		.expand(&ek_info, &mut encryption_key)
 		.map_err(|_| anyhow!("Failed to expand PRK into encryption key"))?;
-	println!("Encryption Key: {:?}", encryption_key);
 
 	// Nonce:
 	let mut nonce = [0; 12];
 	let nonce_info = make_info("nonce", &recipient.public_key, &ephemeral_key)?;
-	println!("Nonce Info: {:?}", nonce_info);
 	Hkdf::<sha2::Sha256>::new(Some(&salt), &prk)
 		.expand(&nonce_info, &mut nonce)
 		.map_err(|_| anyhow!("Failed to expand PRK into nonce"))?;
-	println!("Nonce: {:?}", nonce);
 
-	println!("Plaintext: {:?}", data);
 	// Encrypt the message:
 	let encrypted = Aes128Gcm::new(&encryption_key.into())
 		.encrypt(&nonce.into(), data.as_ref())
 		.map_err(|_| anyhow!("Encryption failed"))?;
-	println!("Ciphertext: {:?}", encrypted);
 
 	// Headers:
 	let headers = Headers::new().and_then(|headers| 
