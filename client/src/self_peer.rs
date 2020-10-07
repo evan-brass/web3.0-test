@@ -16,7 +16,7 @@ use serde::{ Serialize, Deserialize };
 
 use shared::*;
 
-use super::signaling;
+use super::signaling::{SignalingFormat, SignalingMessage};
 use super::persist::Persist;
 use super::crypto;
 use super::rand::get_rng;
@@ -87,8 +87,6 @@ impl SelfPeer {
 			let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 			let signer = SigningKey::from(secret_key.as_ref());
 			let signature: crypto::Signature = signer.sign_with_rng(&mut rng, buffer.as_bytes()).into();
-
-			println!("{}.{}", buffer, base64::encode_config(signature.as_ref(), base64::URL_SAFE_NO_PAD));
 			
 			Ok(web_push::AuthToken {
 				expiration: expiration as u32,
@@ -103,7 +101,7 @@ impl SelfPeer {
 				1, 
 				self.persist.subscriber.as_ref().map(|s|s.as_str())
 			).to_js_error()?;
-			let message = signaling::SignalingFormat::Introduction(push_info.clone(), auth);
+			let message = SignalingFormat::Introduction(push_info.clone(), auth);
 			let mut buffer = Vec::try_from(&message).to_js_error()?;
 
 			let rec_sig = crypto::RecoverableSignature::try_sign_recoverable(&self.persist.secret_key, &buffer).to_js_error()?;
@@ -113,6 +111,22 @@ impl SelfPeer {
 		} else {
 			Err(anyhow!("Can't create an introduction if self doesn't have push info.")).to_js_error()
 		}
+	}
+	pub fn package_signaling(&self, signaling: SignalingMessage, enforce_4k: bool) -> Result<String, JsValue> {
+		let mut buffer = Vec::try_from(&SignalingFormat::from(signaling)).to_js_error()?;
+		let rec_sig = crypto::RecoverableSignature::try_sign_recoverable(&self.persist.secret_key, &buffer).to_js_error()?;
+		buffer.extend_from_slice(&rec_sig.to_bytes());
+		let str = base64::encode_config(buffer, base64::URL_SAFE_NO_PAD);
+
+		if str.as_bytes().len() > 4096 {
+			if enforce_4k {
+				return Err(anyhow!("Message didn't fit within 4096 bytes")).to_js_error();
+			} else {
+				println!("Message didn't fit within 4096, but enforce_4k wasn't set.");
+			}
+		}
+
+		Ok(str)
 	}
 }
 

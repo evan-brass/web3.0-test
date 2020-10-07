@@ -57,6 +57,56 @@ pub fn parse_message(message: &str) -> Result<ParsedMessage, JsValue> {
 
 type SDP = String;
 type ICE = String;
+
+#[wasm_bindgen]
+pub struct SignalingMessage {
+	inner: SignalingFormat
+}
+impl From<SignalingFormat> for SignalingMessage {
+	fn from(sf: SignalingFormat) -> Self {
+		Self{ inner: sf }
+	}
+}
+impl From<SignalingMessage> for SignalingFormat {
+	fn from(sm: SignalingMessage) -> Self {
+		sm.inner
+	}
+}
+#[wasm_bindgen]
+impl SignalingMessage {
+	#[wasm_bindgen(constructor)]
+	pub fn new() -> Self {
+		Self {
+			inner: SignalingFormat::JustIce(Vec::new())
+		}
+	}
+	pub fn add_ice(&mut self, new_ice: ICE) -> bool {
+		match self.inner {
+			SignalingFormat::JustIce(ref mut ices) |
+			SignalingFormat::SDPOffer(_, ref mut ices) |
+			SignalingFormat::SDPAnswer(_, ref mut ices) => {
+				ices.push(new_ice);
+				true
+			},
+			_ => false
+		}
+	}
+	pub fn set_sdp(&mut self, sdp_kind: &str, new_sdp: SDP) -> bool {
+		match self.inner {
+			SignalingFormat::JustIce(ref mut ices) |
+			SignalingFormat::SDPOffer(_, ref mut ices) |
+			SignalingFormat::SDPAnswer(_, ref mut ices) => {
+				self.inner = if sdp_kind == "offer" {
+					SignalingFormat::SDPOffer(new_sdp, ices.clone())
+				} else {
+					SignalingFormat::SDPAnswer(new_sdp, ices.clone())
+				};
+				true
+			},
+			_ => false
+		}
+	}
+}
 #[derive(Eq, PartialEq, Debug)]
 pub enum SignalingFormat {
 	Introduction(PushInfo, AuthToken),
@@ -66,8 +116,39 @@ pub enum SignalingFormat {
 	JustAuth(u32, String, Vec<crypto::Signature>)
 }
 impl SignalingFormat {
-	pub fn merge(_messages: &mut Vec<SignalingFormat>) {
-		todo!("Join SDP + ICE messages together.")
+	pub fn info(&self) -> Option<PushInfo> {
+		match self {
+			SignalingFormat::Introduction(intro, ..) => Some(intro.clone()),
+			_ => None
+		}
+	}
+	pub fn auths(&self) -> Vec<AuthToken> {
+		match self {
+			SignalingFormat::Introduction(_, token) => vec![token.clone()],
+			SignalingFormat::JustAuth(expiration, subscriber, signatures) => {
+				signatures.iter().enumerate().map(|(i, sig)| AuthToken {
+					expiration: expiration + 12 * 60 * i as u32,
+					subscriber: subscriber.clone(),
+					signature: sig.clone()
+				}).collect()
+			},
+			_ => Vec::new()
+		}
+	}
+	pub fn sdp(&self) -> Option<(&str, String)> {
+		match self {
+			SignalingFormat::SDPOffer(sdp, ..) => Some(("offer", sdp.clone())),
+			SignalingFormat::SDPAnswer(sdp, ..) => Some(("answer", sdp.clone())),
+			_ => None
+		}
+	}
+	pub fn ices(&self) -> Vec<ICE> {
+		match self {
+			SignalingFormat::SDPOffer(_, ices) |
+			SignalingFormat::SDPAnswer(_, ices) |
+			SignalingFormat::JustIce(ices) => ices.clone(),
+			_ => Vec::new()
+		}
 	}
 }
 impl TryFrom<&SignalingFormat> for Vec<u8> {

@@ -6,7 +6,6 @@ use web_sys;
 use byteorder::{WriteBytesExt, BigEndian, LittleEndian};
 use js_sys::Uint8Array;
 use p256::{
-	SecretKey,
 	EncodedPoint,
 	ecdh::EphemeralSecret
 };
@@ -76,13 +75,6 @@ fn make_info(content_type: &str, client_public: &crypto::PublicKey, server_publi
 }
 
 pub fn push(recipient: &PushInfo, application_server_pk: &crypto::PublicKey, auth: &AuthToken, message: &[u8], pad_mod: Option<usize>, ttl: usize) -> Result<(String, web_sys::RequestInit), anyhow::Error> {
-	println!("Push Public Key: {:?}", recipient.public_key.as_bytes());
-	println!("Push Auth: {:?}", recipient.auth);
-
-	fn b(buff: &[u8]) -> String {
-		base64::encode_config(buff, base64::URL_SAFE_NO_PAD)
-	}
-
 	// Padding:
 	let pad_len = pad_mod.map_or(0, |pad_mod| {
 		let remainder = message.len() % pad_mod;

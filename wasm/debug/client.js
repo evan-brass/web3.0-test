@@ -254,15 +254,6 @@ export class Peer {
         return PushRequestInfo.__wrap(ret);
     }
     /**
-    * @param {SelfPeer} self_peer
-    * @returns {PushRequestInfo}
-    */
-    prepare_introduction(self_peer) {
-        _assertClass(self_peer, SelfPeer);
-        var ret = wasm.peer_prepare_introduction(this.ptr, self_peer.ptr);
-        return PushRequestInfo.__wrap(ret);
-    }
-    /**
     * @param {ParsedMessage} message
     */
     apply_signaling_message(message) {
@@ -409,6 +400,74 @@ export class SelfPeer {
             wasm.__wbindgen_export_0.value += 16;
             wasm.__wbindgen_free(r0, r1);
         }
+    }
+    /**
+    * @param {SignalingMessage} signaling
+    * @param {boolean} enforce_4k
+    * @returns {string}
+    */
+    package_signaling(signaling, enforce_4k) {
+        try {
+            const retptr = wasm.__wbindgen_export_0.value - 16;
+            wasm.__wbindgen_export_0.value = retptr;
+            _assertClass(signaling, SignalingMessage);
+            var ptr0 = signaling.ptr;
+            signaling.ptr = 0;
+            wasm.selfpeer_package_signaling(retptr, this.ptr, ptr0, enforce_4k);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_export_0.value += 16;
+            wasm.__wbindgen_free(r0, r1);
+        }
+    }
+}
+/**
+*/
+export class SignalingMessage {
+
+    static __wrap(ptr) {
+        const obj = Object.create(SignalingMessage.prototype);
+        obj.ptr = ptr;
+
+        return obj;
+    }
+
+    free() {
+        const ptr = this.ptr;
+        this.ptr = 0;
+
+        wasm.__wbg_signalingmessage_free(ptr);
+    }
+    /**
+    */
+    constructor() {
+        var ret = wasm.signalingmessage_new();
+        return SignalingMessage.__wrap(ret);
+    }
+    /**
+    * @param {string} new_ice
+    * @returns {boolean}
+    */
+    add_ice(new_ice) {
+        var ptr0 = passStringToWasm0(new_ice, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        var ret = wasm.signalingmessage_add_ice(this.ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
+    * @param {string} sdp_kind
+    * @param {string} new_sdp
+    * @returns {boolean}
+    */
+    set_sdp(sdp_kind, new_sdp) {
+        var ptr0 = passStringToWasm0(sdp_kind, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        var ptr1 = passStringToWasm0(new_sdp, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ret = wasm.signalingmessage_set_sdp(this.ptr, ptr0, len0, ptr1, len1);
+        return ret !== 0;
     }
 }
 

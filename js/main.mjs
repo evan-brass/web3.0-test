@@ -1,15 +1,15 @@
-import init, { SelfPeer, Peer, parse_message } from '../../wasm/debug/client.js';
+import init, { SelfPeer, Peer, parse_message, SignalingMessage } from '../../wasm/debug/client.js';
 import { html, mount, on, ref } from '../extern/js-min/src/template-v2/templating.mjs';
+
+function delay(time) {
+	return new Promise(resolve => setTimeout(resolve, time));
+}
 
 async function run() {
 	await init();
-	console.log("WASM Initialized");
 
 	const self = new SelfPeer();
-	console.log("Self Peer: ", self);
 	const self_pk = self.get_public_key();
-	console.log("Self Public Key: ", self_pk);
-	// console.log("Current Auth Subscriber: ", self.subscriber);
 
 	// Register our service worker which will pass push message on to us.
 	let sw_reg = await navigator.serviceWorker.getRegistration();
@@ -76,7 +76,6 @@ async function run() {
 	}
 
 	let peers = Peer.get_all_peers();
-	console.log("Peers: ", peers);
 
 	const ui = {};
 	mount(html`<aside>
@@ -126,16 +125,102 @@ async function run() {
 			}
 			return false;
 		}
+		
+		const pc = new RTCPeerConnection({
+			iceServers: [{
+				urls: [
+					"stun://stun1.l.google.com:19302",
+					"stun://stun2.l.google.com:19302",
+					"stun://stun3.l.google.com:19302",
+					"stun://stun4.l.google.com:19302"
+				]
+			}],
+			iceCandidatePoolSize: 5
+		});
+
+		let signaling = new SignalingMessage();
+		let send_handle = false;
+		const send_delay = 100;
+		function queue_send() {
+			if (!send_handle) {
+				send_handle = setTimeout(async () => {
+					const str = self.package_signaling(signaling, true);
+					await try_push(str);
+
+					send_handle = false;
+				}, send_delay);
+			}
+		}
+
+		pc.onnegotiationneeded = async e => {
+			await pc.setLocalDescription(await pc.createOffer());
+			const str = JSON.stringify(pc.localDescription);
+			signaling.set_sdp('offer', str);
+
+			queue_send();
+		};
+		pc.onicecandidate = ({candidate}) => {
+			if (candidate != null) {
+				const str = JSON.stringify(candidate);
+				signaling.add_ice(str);
+
+				queue_send();
+			}
+		};
+
+		pc.ondatachannel = ({ channel }) => {
+			console.log("Data Channel: ", channel);
+			channel.onopen = e => console.log("data channel - onopen: ", e);
+			channel.onmessage = e => console.log("data channel - onmessage: ", e);
+			channel.onerror = e => console.log("data channel - onerror: ", e);
+			channel.onclosing = e => console.log("data channel - onclosing: ", e);
+			channel.onclose = e => console.log("data channel - onclose: ", e);
+		};
+		
+		peer.set_sdp_handler(async (type, sdp) => {
+			if (type == "offer") {
+				if (!pc.signalingState == 'stable') {
+					if (!self.am_dominant(peer)) {
+						await pc.setLocalDescription({ type: "rollback" });
+					} else {
+						// Ignore incoming SDP's while our signaling state isn't stable if we're dominant.
+						return;
+					}
+				}
+				await pc.setRemoteDescription(JSON.parse(sdp));
+				await pc.setLocalDescription(await pc.createAnswer());
+	
+				const answer_str = JSON.stringify(pc.localDescription);
+				signaling.set_sdp('answer', answer_str);
+
+				queue_send();
+			} else {
+				await pc.setRemoteDescription(JSON.parse(sdp));
+			}
+		});
+		peer.set_ice_handler(async ice => {
+			const candidate = new RTCIceCandidate(JSON.parse(ice));
+			await pc.addIceCandidate(candidate);
+		});
+		
 		// On startup, send all peers our intro: (TODO: Don't do this every time the page loads - I just want to check web push)
 		const reachable = await try_push(self.get_introduction());
-		// const reachable = await try_push("Hello World!");
 		
 		let unmount = mount(html`
 			<li>
 				${peer.peer_id()} - ${reachable ? "Reachable" : "Unreachable"} - <button ${on('click', () => {
 					peer.delete();
 					unmount();
-				})}>Remove</button>
+				})}>Remove</button> - <button ${on('click', async () => {
+					const channel = pc.createDataChannel("test-channel");
+					channel.addEventListener('open', async e => {
+						channel.send("Hello.");
+						await delay(1000);
+						channel.send("World.");
+						await delay(3000);
+						channel.close();
+					});
+				})}>Connect</button>
 			</li>
 		`, ui.peer_list);
 	}

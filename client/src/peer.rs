@@ -16,7 +16,6 @@ use super::web_push;
 use super::persist::Persist;
 use super::crypto;
 use super::persist;
-use super::self_peer::SelfPeer;
 
 pub fn peer_tag(public_key: &crypto::PublicKey) -> String {
 	base64::encode_config(public_key.compress().as_bytes(), base64::URL_SAFE_NO_PAD)
@@ -96,15 +95,6 @@ impl Peer {
 	pub fn set_ice_handler(&mut self, callback: JsValue) {
 		self.ice_handler = callback;
 	}
-	fn handle_ices(&self, ices: Vec<String>) -> Result<(), JsValue> {
-		if self.ice_handler.is_function() {
-			let ice_handler = Function::from(self.ice_handler.clone());
-			for ice in ices {
-				ice_handler.call1(&JsValue::null(), &JsValue::from(ice))?;
-			}
-		}
-		Ok(())
-	}
 	fn find_auth(&self) -> Option<&web_push::AuthToken> {
 		self.persist.info.as_ref().and_then(|info| {
 			self.persist.authorizations.iter().find(|auth| {
@@ -125,64 +115,24 @@ impl Peer {
 			0
 		).to_js_error()?))
 	}
-	pub fn prepare_introduction(&self, self_peer: &SelfPeer) -> Result<PushRequestInfo, JsValue> {
-		let auth = self.find_auth().ok_or(anyhow!("Peer doesn't have a valid push authorization")).to_js_error()?;
-		Ok(PushRequestInfo::from(web_push::push(
-			self.persist.info.as_ref()
-				.ok_or(anyhow!("Peer doesn't have push info"))
-				.to_js_error()?,
-			&self.persist.public_key,
-			auth,
-			self_peer.get_introduction()?.as_bytes(),
-			None,
-			0
-		).to_js_error()?))
-	}
-	// pub fn queue_sdp_offer(&mut self, sdp: String) -> Result<Option<web_sys::Request>, JsValue> {
-	// 	let ret;
-	// 	if let Some(ref mut msg) = self.signaling_queue {
-	// 		match msg {
-	// 			SignalingFormat::Introduction(..) => {
-	// 				ret = Some(web_push::push(
-	// 					&self.persist.info, 
-	// 					&self.persist.public_key, 
-	// 					auth, // TODO: Pick a valid push authorization
-	// 					From::from(msg)?,
-	// 					None, 
-	// 					0
-	// 				));
-	// 			}
-	// 		}
-	// 	} else {
-
-	// 	}
-	// 	Ok(ret)
-	// }
 	pub fn apply_signaling_message(&mut self, message: signaling::ParsedMessage) -> Result<(), JsValue> {
-		match message.message {
-			SignalingFormat::Introduction(info, auth) => {
-				self.persist.make_change(|persist| {
-					persist.info = Some(info);
-					persist.authorizations.push(auth);
-				}).to_js_error()?;
-			},
-			SignalingFormat::SDPAnswer(sdp, ices) => {
-				if self.sdp_handler.is_function() {
-					Function::from(self.sdp_handler.clone()).call2(&JsValue::null(), &JsValue::from("offer"), &JsValue::from(sdp))?;
-				}
-				self.handle_ices(ices)?;
-			},
-			SignalingFormat::SDPOffer(sdp, ices) => {
-				if self.sdp_handler.is_function() {
-					Function::from(self.sdp_handler.clone()).call2(&JsValue::null(), &JsValue::from("answer"), &JsValue::from(sdp))?;
-				}
-				self.handle_ices(ices)?;
-			},
-			SignalingFormat::JustIce(ices) => {
-				self.handle_ices(ices)?;
-			},
-			SignalingFormat::JustAuth(..) => {
-				todo!("Implement just-auth message handling")
+		if let Some(info) = message.message.info() {
+			self.persist.make_change(|persist| {
+				persist.info = Some(info);
+			}).to_js_error()?;
+		}
+		self.persist.make_change(|persist| {
+			persist.authorizations.extend_from_slice(&message.message.auths());
+		}).to_js_error()?;
+		if self.sdp_handler.is_function() {
+			if let Some((kind, sdp)) = message.message.sdp() {
+				Function::from(self.sdp_handler.clone()).call2(&JsValue::null(), &JsValue::from(kind), &JsValue::from(sdp))?;
+			}
+		}
+		if self.ice_handler.is_function() {
+			let ice_handler = Function::from(self.ice_handler.clone());
+			for ice in message.message.ices() {
+				ice_handler.call1(&JsValue::null(), &JsValue::from(ice))?;
 			}
 		}
 		Ok(())
