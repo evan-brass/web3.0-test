@@ -8,6 +8,7 @@ use serde::{
 };
 use signaling::SignalingFormat;
 use js_sys::Function;
+use std::collections::HashMap;
 
 use shared::*;
 
@@ -26,6 +27,7 @@ struct PeerPersist {
 	public_key: crypto::PublicKey,
 	info: Option<web_push::PushInfo>,
 	authorizations: Vec<web_push::AuthToken>,
+	extra: HashMap<String, String>
 }
 
 #[wasm_bindgen]
@@ -74,17 +76,26 @@ impl From<(String, web_sys::RequestInit)> for PushRequestInfo {
 
 #[wasm_bindgen]
 impl Peer {
-	pub fn get_all_peers() -> Result<js_sys::Array, JsValue> {
+	pub fn get_all_peer_keys() -> Result<js_sys::Array, JsValue> {
 		let ls = persist::get_local_storage().to_js_error()?;
-		let mut i = 0;
-		let mut peers = Vec::new();
-		while let Some(key) = ls.key(i).map_err(|_| anyhow!("Getting key failed.")).to_js_error()? {
-			i += 1;
-			if key.starts_with("peer.") {
-				peers.push(Self::new_from_key_unchecked(key).to_js_error()?);
-			}
+		// TODO: Use map_while
+		let mut was_err = false;
+		let arr = (0..).map(|i| {
+				let ret = ls.key(i);
+				was_err |= ret.is_err();
+				ret
+			})
+			.take_while(|r| {
+				r.as_ref().unwrap_or(&None).is_some()
+			})
+			.map(|r| r.unwrap().unwrap())
+			.map(JsValue::from)
+			.collect();
+		if !was_err {
+			Ok(arr)
+		} else {
+			Err(anyhow!("Failed to get a key.")).to_js_error()
 		}
-		Ok(peers.into_iter().map(JsValue::from).collect())
 	}
 	pub fn peer_id(&self) -> String {
 		peer_tag(&self.persist.public_key)
@@ -142,8 +153,28 @@ impl Peer {
 		new_peer.apply_signaling_message(message)?;
 		Ok(new_peer)
 	}
+	pub fn new_from_key(key: String) -> Result<Option<Peer>, JsValue> {
+		Ok(if let Some(persist) = Persist::new_no_create(&key).to_js_error()? {
+			Some(Peer {
+				persist,
+				sdp_handler: JsValue::null(),
+				ice_handler: JsValue::null(),
+				signaling_queue: None
+			})
+		} else {
+			None
+		})
+	}
 	pub fn delete(self) -> Result<(), JsValue> {
 		self.persist.delete().to_js_error()
+	}
+	pub fn set_extra(&mut self, key: String, value: String) -> Result<(), JsValue> {
+		self.persist.make_change(|persist| {
+			persist.extra.insert(key, value);
+		}).to_js_error()
+	}
+	pub fn get_extra(&mut self, key: String) -> Option<String> {
+		self.persist.extra.get(&key).cloned()
 	}
 }
 impl Peer {
@@ -155,18 +186,11 @@ impl Peer {
 					PeerPersist {
 						public_key,
 						info: None,
-						authorizations: Vec::new()
+						authorizations: Vec::new(),
+						extra: HashMap::new()
 					}
 				}
 			)?,
-			sdp_handler: JsValue::null(),
-			ice_handler: JsValue::null(),
-			signaling_queue: None
-		})
-	}
-	fn new_from_key_unchecked(key: String) -> Result<Self, anyhow::Error> {
-		Ok(Self {
-			persist: Persist::new(&key, || unreachable!("new_from_key_unchecked failed because the key didn't exist."))?,
 			sdp_handler: JsValue::null(),
 			ice_handler: JsValue::null(),
 			signaling_queue: None

@@ -23,28 +23,28 @@ impl<T: Serialize + DeserializeOwned> Persist<T> {
 		lc.set_item(&self.key, &encoded).map_err(|_| anyhow!("Failed to set the value back to local storage"))
 	}
 	pub fn new(key: &str, create: impl FnOnce() -> T) -> Result<Self, anyhow::Error> {
+		Self::new_no_create(key)?.map(|peer| Ok(peer)).unwrap_or_else(|| {
+			let value = create();
+			let peer = Self {
+				key: key.into(),
+				value
+			};
+			peer.save()?; // Save the peer after creation.
+			Ok(peer)
+		})
+	}
+	pub fn new_no_create(key: &str) -> Result<Option<Self>, anyhow::Error> {
 		let lc = get_local_storage()?;
-		let stored = lc.get_item(key).map_err(|_| anyhow!("Error getting the item by key."))?;
-		let peer = match stored {
-			Some(str) => {
-				let buff = base64::decode(str).context("Base64 decoding failed.")?;
-				let value = bincode::deserialize(&buff)?;
-				Self {
-					key: key.into(),
-					value
-				}
-			},
-			None => {
-				let value = create();
-				let peer = Self {
-					key: key.into(),
-					value
-				};
-				peer.save()?; // Save the peer after creation.
-				peer
-			}
-		};
-		Ok(peer)
+		if let Some(str) = lc.get_item(key).map_err(|_| anyhow!("Error getting the item by key."))? {
+			let buff = base64::decode(str).context("Base64 decoding failed.")?;
+			let value = bincode::deserialize(&buff)?;
+			Ok(Some(Self {
+				key: key.into(),
+				value
+			}))
+		} else {
+			Ok(None)
+		}
 	}
 	pub fn make_change<R>(&mut self, func: impl FnOnce(&mut T) -> R) -> Result<R, anyhow::Error> {
 		let result = func(&mut self.value);

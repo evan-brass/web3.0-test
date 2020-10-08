@@ -1,0 +1,13 @@
+html {
+	margin: 0;
+	padding: 0;
+	font-family: Georgia, 'Times New Roman', Times, serif;
+}
+h1, h2, h3, h4, h5, h6 {
+	font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+body {
+	max-width: 60ch;
+	margin: 0 auto;
+	padding: 3em;
+}
