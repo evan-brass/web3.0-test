@@ -1,5 +1,3 @@
-#![feature(set_stdio)]
-
 use wasm_bindgen::prelude::*;
 use std::fmt::Debug;
 
@@ -15,9 +13,3 @@ impl<T, E: Debug> ToJsError for Result<T, E> {
 		self.map_err(|e| JsValue::from(js_sys::Error::new(&format!("{:?}", e))))
 	}
 }
-// impl<T> ToJsError for Result<T, anyhow::Error> {
-// 	type T = T;
-// 	fn to_js_error(self) -> Result<T, JsValue> {
-// 		self.map_err(|e| JsValue::from(js_sys::Error::new(&format!("{:#}", e))))
-// 	}
-// }

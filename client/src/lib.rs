@@ -7,6 +7,7 @@ mod signaling;
 mod rand;
 mod self_peer;
 mod web_push;
+mod signaling_v2;
 
 use shared::*;
 

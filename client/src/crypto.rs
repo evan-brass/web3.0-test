@@ -9,25 +9,58 @@ use serde::{
 	de::Deserializer
 };
 
-use p256::{
-	EncodedPoint,
-	Scalar, NonZeroScalar, ProjectivePoint, AffinePoint,
-	ecdsa::{
+use p256::{AffinePoint, EncodedPoint, NonZeroScalar, ProjectivePoint, PublicKey, Scalar, ecdsa::{
 		signature::{
 			Signature as _
 		},
-	},
-	elliptic_curve::{
+	}, elliptic_curve::{
 		FromDigest,
 		weierstrass::point::Decompress,
 		ff::PrimeField
-	}
-};
+	}};
 use sha2::Digest;
 use ecdsa;
 use anyhow::{Context, anyhow};
 
 use super::rand::get_rng;
+
+pub mod eip2098 {
+	use std::io::prelude::*;
+	pub fn decode_compact<I: Read>(input: &mut I) -> Result<(p256::ecdsa::Signature, bool), anyhow::Error> {
+		let mut r = [0; 32];
+		input.read_exact(&mut r)?;
+		let mut s = [0; 32];
+		input.read_exact(&mut s)?;
+		let v = s[0] > 0b10000000;
+		s[0] &= 0b01111111;
+		let signature = p256::ecdsa::Signature::from_scalars(r, s)?;
+		Ok((signature, v))
+	}
+	pub fn encode_compact<O: Write>(recoverable: (p256::ecdsa::Signature, bool), output: &mut O) -> Result<(), anyhow::Error> {
+	
+	}
+}
+pub fn recover_pub_key(signature: p256::ecdsa::Signature, is_odd: bool, message_hash: &Scalar) -> Result<p256::PublicKey, anyhow::Error> {
+	// STOLEN: from the recoverable implementation in k256
+	let r = signature.r();
+	let s = signature.s();
+	let z = message_hash;
+	let R = AffinePoint::decompress(&r.to_bytes(), (is_odd as u8).into());
+
+	if R.is_some().into() {
+		let R = ProjectivePoint::from(R.unwrap());
+		let r_inv = r.invert().unwrap();
+		let u1 = -(r_inv * z);
+		let u2 = r_inv * *s;
+		let pk = (ProjectivePoint::generator() * u1) + (R * u2);
+		let pk = p256::PublicKey::from_affine(pk.to_affine())?;
+
+		// TODO(tarcieri): ensure the signature verifies?
+		Ok(pk)
+	} else {
+		Err(anyhow!("Failed to decompress R point."))
+	}
+}
 
 // Simple new-type wrapper
 #[derive(Debug)]

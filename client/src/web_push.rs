@@ -1,5 +1,5 @@
 use anyhow::{ Context, anyhow };
-use p256::ecdsa::{VerifyKey, signature::Verifier};
+use p256::ecdsa::{VerifyingKey, signature::Verifier};
 use url::Url;
 use serde::{Serialize, Deserialize};
 use web_sys;
@@ -40,12 +40,12 @@ impl AuthToken {
 		}
 
 		let audience = Url::parse(&info.endpoint).context("Endpoint URL parsing failed.")?.origin().unicode_serialization();
-		let body = format!("{{\"aud\":\"{}\",\"exp\":{},\"sub\":\"{}\"}}", audience, self.expiration, self.subscriber);
+		let body = format!(r#"{{"aud":"{}","exp":{},"sub":"{}"}}"#, audience, self.expiration, self.subscriber);
 		let body = base64::encode_config(body.as_bytes(), base64::URL_SAFE_NO_PAD);
 
 		let buffer = format!("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.{}", body);
 
-		let verifier = VerifyKey::from_encoded_point(
+		let verifier = VerifyingKey::from_encoded_point(
 			expected_signer
 		).map_err(|_| anyhow!("Expected Signer couldn't be turned into a verify key."))?;
 		if verifier.verify(buffer.as_bytes(), &self.signature).is_ok() {

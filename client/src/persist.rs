@@ -1,7 +1,6 @@
 use serde::{Serialize, de::DeserializeOwned};
 use web_sys;
 use anyhow::{ Context, anyhow };
-use bincode;
 use base64;
 use std::ops::Deref;
 

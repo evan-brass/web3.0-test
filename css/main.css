@@ -4,43 +4,41 @@ html, body {
 }
 body {
 	padding: 3em;
-	display: grid;
-	grid-template:
-		"header header" auto
-		"peers content" auto
-		"footer footer" auto / auto 2fr;
 }
 main {
-	grid-area: content;
+	margin: 0 auto;
+	max-width: 65ch;
 }
-aside {
-	grid-area: peers;
-}
-header {
-	grid-area: header;
-}
-footer {
-	grid-area: footer;
-}
-#peer-list {
-	padding: 0;
-}
-.friend {
-	display: grid;
-	list-style: none;
-	grid-template:
-		"profile name" auto
-		"profile status" auto / auto 1fr;
-}
-.friend > picture {
-	grid-area: profile;
-}
-.friend > p {
+summary > h1, summary > h2, summary > h3, summary > h4, summary > h5, summary > h6 {
+	display: inline-block;
 	margin: 0;
 }
-.peer-list {
-	padding: 0;
+details {
+	border: 1px solid #333;
+	padding: .5em;
+	margin: .5em;
 }
-.friend.active {
-	border-left: 3px solid rebeccapurple;
+#log > pre {
+	max-height: 15ch;
+	overflow-y: auto;
+	margin: 0;
+	border: 1px solid;
+	overflow-wrap: anywhere;
+	white-space: pre-line;
+}
+#steps {
+	padding-left: 1em;
+	margin: 0;
+}
+#steps > li {
+	list-style-type: "\23F2";
+	color: #3E6990;
+}
+#steps > li.completed {
+	list-style-type: "\2713";
+	color: #85CB33;
+}
+#steps > li.failed {
+	list-style-type: "\2715";
+	color: #ED6A5A;
 }

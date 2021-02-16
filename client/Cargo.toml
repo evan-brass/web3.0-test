@@ -17,7 +17,7 @@ wee_alloc = "0.4"
 console_error_panic_hook = "0.1"
 base64 = "0.12"
 anyhow = "1.0"
-p256 = { version = "0.5", features = ["arithmetic", "ecdh", "ecdsa"] }
+p256 = { version = "0.7", features = ["arithmetic", "ecdh", "ecdsa-core", "ecdsa", "zeroize"] }
 ecdsa = "0.8"
 rand = "0.7.3"
 byteorder = "1.3"
